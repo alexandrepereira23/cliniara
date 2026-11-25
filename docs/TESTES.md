@@ -6,7 +6,7 @@ Este documento registra a estrategia de testes, comandos de validacao e pendenci
 
 Validado nesta revisao documental:
 
-- Backend: **196 testes passando** com `./mvnw test` em `backend/`.
+- Backend: **206 testes passando** com `./mvnw test` em `backend/`.
 - Frontend: **29 testes passando** com `npm test` em `frontend/`.
 - Frontend audit: **0 vulnerabilidades** reportadas em `npm audit` (corrigido com seguranca via `npm audit fix`).
 - CI/CD (`.github/workflows/deploy.yml`): executa automaticamente `./mvnw --batch-mode test`, `npm test`, `npm run check` e `npm run build` em todo push ou Pull Request para `main` antes de liberar o deploy na VPS.
@@ -94,18 +94,18 @@ Validam rotas, serializacao, status HTTP e autorizacao por `@PreAuthorize`.
 |---|---:|---|
 | `AtestadoControllerTest` | 10 | Emissao/listagem/detalhamento e permissoes |
 | `AuditoriaControllerTest` | 4 | Auditoria LGPD restrita a auditor/gestor |
-| `AutenticacaoControllerTest` | 14 | Login, cadastro/listagem de usuarios e medicos disponiveis |
+| `AutenticacaoControllerTest` | 16 | Login, cadastro/listagem de usuarios, medicos disponiveis e verificacao reflexiva de `@ParameterObject` |
 | `ConsultaControllerTest` | 7 | Agendar, listar e cancelar consultas por role |
 | `ConvenioControllerTest` | 10 | CRUD de convenios e RBAC |
 | `ConvenioPacienteControllerTest` | 6 | Vinculo de convenio ao paciente |
-| `DisponibilidadeMedicoControllerTest` | 6 | Disponibilidade medica e permissoes |
+| `DisponibilidadeMedicoControllerTest` | 6 | Disponibilidade medica, permissoes e persistencia na inativacao |
 | `EnderecoControllerTest` | 8 | `GET /enderecos/cep/{cep}` e permissoes |
 | `EspecialidadeControllerTest` | 10 | CRUD de especialidades e permissoes |
 | `MedicoControllerTest` | 8 | CRUD de medicos e restricoes por role |
-| `MedicoConvenioControllerTest` | 4 | Convenios aceitos pelo medico |
+| `MedicoConvenioControllerTest` | 6 | Convenios aceitos pelo medico, desvinculo e erro 404 padronizado |
 | `PacientesControllerTest` | 10 | CRUD/listagem filtrada de pacientes |
 | `PrescricaoControllerTest` | 10 | Criacao, detalhamento/listagem e permissoes |
-| `ProntuarioControllerTest` | 17 | Criacao, listagem, edicao, inativacao e permissoes |
+| `ProntuarioControllerTest` | 21 | Criacao, listagem, edicao, inativacao, permissoes e mapeamento de `ResponseStatusException` (403/404/409/422) |
 
 ## Estrategia de Testes Frontend
 
@@ -146,12 +146,14 @@ Flyway fica desabilitado nos testes porque algumas migrations usam sintaxe espec
 
 ## Testes de Integracao
 
+| Classe | Testes | Cobertura principal |
+|---|---:|---|
+| `ExclusaoLogicaPersistenciaIntegrationTest` | 2 | Persistencia real (`@SpringBootTest` + H2) de `ativo = false` em `DELETE /medicos/{id}/disponibilidade/{dispId}` e `DELETE /medicos/{id}/convenios/{convenioId}` |
+
 A suite atual usa H2 para contexto Spring e mocks para clientes externos. A integracao CEP possui testes unitarios/service/client, mas nao sobe um servidor real do `Consultar-Cep`. O lock pessimista do vinculo medico-usuario tambem esta coberto por teste unitario, nao por uma corrida real em MySQL.
 
 ## Pendencias de Teste
 
-- Cobrir em `@WebMvcTest` cenarios onde services lancam `ResponseStatusException` (`403`, `404`, `409`, `422`) junto ao `TratadorDeErros`.
-- Cobrir com teste integrado de repositorio/banco a persistencia real do soft delete em `DisponibilidadeMedicoController.remover` e `MedicoConvenioController.desvincular`.
 - Criar testes de integracao com MySQL real / Testcontainers validando a execucao das migrations Flyway (`V1`–`V25`) em banco limpo e concorrencia real no vinculo medico-usuario e agendamento.
 - Criar E2E smoke tests para login e redirecionamento por perfil.
 - Cobrir navegacao principal por perfil via E2E.

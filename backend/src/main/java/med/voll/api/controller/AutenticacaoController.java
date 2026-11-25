@@ -13,6 +13,7 @@ import med.voll.api.domain.usuario.UsuarioRepository;
 import med.voll.api.infra.security.DadosTokenJWT;
 import med.voll.api.infra.security.TokenService;
 import med.voll.api.service.UsuarioService;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -64,7 +65,7 @@ public class AutenticacaoController {
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "Listar médicos disponíveis para vínculo", description = "Retorna médicos ativos que ainda não possuem usuário vinculado. Requer perfil ADMIN.")
     public ResponseEntity<Page<DadosMedicoDisponivelVinculoUsuario>> listarMedicosDisponiveis(
-            @PageableDefault(size = 100, sort = "nome") Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 100, sort = "nome") Pageable pageable) {
         return ResponseEntity.ok(usuarioService.listarMedicosDisponiveisParaVinculo(pageable));
     }
 
@@ -72,7 +73,7 @@ public class AutenticacaoController {
     @PreAuthorize("hasRole('ROLE_ADMIN')")
     @Operation(summary = "Listar usuários", description = "Retorna todos os usuários cadastrados. Requer perfil ADMIN.")
     public ResponseEntity<Page<DadosDetalhamentoUsuario>> listar(
-            @PageableDefault(size = 10, sort = "login") Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 10, sort = "login") Pageable pageable) {
         var page = usuarioRepository.findAll(pageable).map(DadosDetalhamentoUsuario::new);
         return ResponseEntity.ok(page);
     }

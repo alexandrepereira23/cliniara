@@ -8,9 +8,6 @@ Este arquivo centraliza melhorias futuras, correcoes tecnicas mapeadas, pendenci
 
 ### Correcoes Tecnicas de Integridade (Backend & Frontend)
 
-- **`TratadorDeErros` vs `ResponseStatusException`:** adicionar handler especifico para `ResponseStatusException` / `ErrorResponseException` antes de `@ExceptionHandler(Exception.class)` para preservar os status `403`, `404`, `409` e `422` lancados pelos services, cobrindo com testes `@WebMvcTest`.
-- **Persistencia na exclusao logica de disponibilidade e convenios do medico:** adicionar `@Transactional` (ou camada de service / `save()` explicito) em `DisponibilidadeMedicoController.remover` e `MedicoConvenioController.desvincular`, com testes integrados validando o `UPDATE` no banco.
-- **Swagger em `AutenticacaoController`:** adicionar `@ParameterObject` nos parametros `Pageable` de `GET /auth/usuarios` e `GET /auth/medicos-disponiveis`.
 - **Validacoes clinicas da agenda e retorno (`AgendaDeConsultas`):**
   - Validar no retorno (`consultaOrigemId`) se o paciente e o mesmo da consulta original, se a data do retorno e posterior a consulta de origem e permitir novo retorno caso o anterior tenha sido cancelado.
   - Validar no agendamento com `convenioId` se o paciente possui vinculo ativo e carteirinha dentro da validade (`convenio_pacientes`).
@@ -117,3 +114,6 @@ Definir se usuario `ROLE_MEDICO` deve continuar autenticando quando o medico vin
 - Auditoria LGPD por recurso clinico (`V25`) para prontuarios, prescricoes e atestados.
 - Especialidades migradas de enum para entidade/tabela (`V21`).
 - Vulnerabilidades npm no frontend corrigidas via `npm audit fix` (0 vulnerabilidades remanescentes).
+- Tratamento dedicado de `ResponseStatusException` em `TratadorDeErros` preservando status HTTP (`400`, `403`, `404`, `409`, `422`) e payload JSON padronizado.
+- Persistencia transacional (`@Transactional` + `save()`) em `DisponibilidadeMedicoController` e `MedicoConvenioController`, validada com teste de integracao em banco H2.
+- `@ParameterObject` aplicado em todos os parametros `Pageable` dos controllers, protegido por teste reflexivo automatizado.

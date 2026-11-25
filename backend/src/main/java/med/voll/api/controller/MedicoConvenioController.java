@@ -9,6 +9,7 @@ import med.voll.api.domain.convenio.ConvenioRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -33,6 +34,7 @@ public class MedicoConvenioController {
     }
 
     @PostMapping
+    @Transactional
     @PreAuthorize("hasRole('ROLE_FUNCIONARIO')")
     @Operation(summary = "Vincular convênio ao médico", description = "Associa um convênio à lista de planos aceitos pelo médico")
     public ResponseEntity<DadosDetalhamentoConvenioMedico> vincular(
@@ -65,6 +67,7 @@ public class MedicoConvenioController {
     }
 
     @GetMapping
+    @Transactional(readOnly = true)
     @PreAuthorize("hasAnyRole('ROLE_FUNCIONARIO', 'ROLE_MEDICO', 'ROLE_AUDITOR', 'ROLE_GESTOR')")
     @Operation(summary = "Listar convênios do médico", description = "Lista todos os convênios ativos aceitos pelo médico")
     public ResponseEntity<List<DadosDetalhamentoConvenioMedico>> listar(@PathVariable Long medicoId) {
@@ -76,6 +79,7 @@ public class MedicoConvenioController {
     }
 
     @DeleteMapping("/{convenioId}")
+    @Transactional
     @PreAuthorize("hasRole('ROLE_FUNCIONARIO')")
     @Operation(summary = "Desvincular convênio do médico", description = "Remove a associação entre o médico e o convênio")
     public ResponseEntity<Void> desvincular(
@@ -86,6 +90,7 @@ public class MedicoConvenioController {
                 .filter(MedicoConvenio::isAtivo)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Vínculo não encontrado"));
         vinculo.desvincular();
+        medicoConvenioRepository.save(vinculo);
         return ResponseEntity.noContent().build();
     }
 }

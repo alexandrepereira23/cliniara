@@ -54,23 +54,23 @@ O campo `dia_semana` usa `VARCHAR(20)` no banco armazenando o nome do enum Java 
 
 ## API e Controllers
 
-### `@ParameterObject` nos endpoints com `Pageable`
+### `@ParameterObject` em todos os endpoints com `Pageable`
 
-Os parâmetros `Pageable` nos controllers operacionais usam `@ParameterObject` do SpringDoc.
+Todos os parâmetros `Pageable` nos controllers usam `@ParameterObject` do SpringDoc, incluindo `AutenticacaoController` (`GET /auth/usuarios` e `GET /auth/medicos-disponiveis`).
 
 **Por quê:** Sem a anotação, o Swagger UI renderiza o `sort` como `array[string]` com valor padrão `["string"]`, que é enviado literalmente ao JPA e causa `InvalidDataAccessApiUsageException`. Com `@ParameterObject`, os parâmetros são expandidos individualmente (`page`, `size`, `sort`).
 
-> **Pendência técnica conhecida:** `AutenticacaoController` (`GET /auth/usuarios` e `GET /auth/medicos-disponiveis`) ainda não possui `@ParameterObject` nos parâmetros `Pageable` (mapeado em `docs/BACKLOG.md`).
+**Proteção contra regressão:** `AutenticacaoControllerTest.todosParametrosPageableNosControllersDevemTerParameterObject` varre todos os `@RestController`s do pacote `med.voll.api.controller` e falha caso qualquer parâmetro `Pageable` seja declarado sem `@ParameterObject`.
 
 ---
 
-### `ResponseStatusException` nos Services (`ProntuarioService`, `IaService`, `ConvenioPacienteService`)
+### `ResponseStatusException` nos Services e tratamento em `TratadorDeErros`
 
-O service de prontuários (e outros fluxos com múltiplos status HTTP) usa `ResponseStatusException` em vez de `ValidacaoException` customizada.
+Os services com múltiplos códigos HTTP (`ProntuarioService`, `PrescricaoService`, `AtestadoService`, `EspecialidadeService`, `ConvenioService`, `ConvenioPacienteService`, `PacienteService`, `IaService` e `MedicoConvenioController`) usam `ResponseStatusException` em vez de `ValidacaoException` customizada.
 
-**Por quê:** Os erros de prontuário têm códigos HTTP distintos (403, 404, 409, 422) que não se encaixam no padrão 400 da `ValidacaoException`. `ResponseStatusException` permite especificar o status exato sem criar múltiplas classes de exceção.
+**Por quê:** Esses fluxos retornam códigos HTTP distintos (`400`, `403`, `404`, `409`, `422`) que não se encaixam no padrão `400` único da `ValidacaoException`.
 
-> **Atenção / Bug conhecido a corrigir:** `TratadorDeErros` declara `@ExceptionHandler(Exception.class)` sem um handler específico para `ErrorResponseException` / `ResponseStatusException`. Em execução real, exceções `ResponseStatusException` lançadas pelos services acabam capturadas pelo handler genérico de erro 500. A adição de um handler dedicado em `TratadorDeErros` + testes `@WebMvcTest` correspondentes está priorizada em `docs/BACKLOG.md`.
+**Integração com `TratadorDeErros`:** `TratadorDeErros.tratarResponseStatus` intercepta `ResponseStatusException` antes do `@ExceptionHandler(Exception.class)`, preserva o `statusCode` original e devolve o contrato JSON padronizado `{ "campo": "...", "mensagem": "..." }` (mapeando `campo` para `"regra_negocio"`, `"acesso_negado"`, `"nao_encontrado"`, `"conflito"` ou `"erro"`), garantindo compatibilidade direta com `extractApiError` no frontend.
 
 ---
 
@@ -78,9 +78,9 @@ O service de prontuários (e outros fluxos com múltiplos status HTTP) usa `Resp
 
 `DisponibilidadeMedicoController` e `MedicoConvenioController` acessam os repositories diretamente, sem uma classe `@Service` intermediária.
 
-**Por quê:** A lógica inicial era enxuta (buscar médico → criar/listar/inativar disponibilidade ou vínculo de convênio) e buscou-se evitar abstrações extras.
+**Por quê:** A lógica é direta (buscar médico → criar/listar/inativar disponibilidade ou vínculo de convênio) e buscou-se evitar abstrações extras.
 
-> **Atenção / Bug conhecido a corrigir:** Os métodos de remoção lógica (`DisponibilidadeMedicoController.remover` e `MedicoConvenioController.desvincular`) alteram o estado da entidade em memória (`inativar()` / `desvincular()`) sem `@Transactional` e sem chamada explícita a `repository.save(...)`, fazendo com que o `UPDATE` não seja persistido no MySQL. Correção registrada em `docs/BACKLOG.md`.
+**Garantia transacional:** Os endpoints de escrita usam `@Transactional` com chamada explícita a `repository.save(...)` nas exclusões lógicas (`remover` / `desvincular`), e os endpoints de listagem usam `@Transactional(readOnly = true)` (garantindo sessão aberta para associações `LAZY`). A persistência real do `ativo = false` é validada por `ExclusaoLogicaPersistenciaIntegrationTest`.
 
 ---
 

@@ -9,7 +9,7 @@ O Voll.med esta estruturado como monorepo fullstack com backend Spring Boot 3.5.
 Estado validado nesta revisao:
 
 - Backend completo ate a migration `V25`; proxima migration esperada: `V26`.
-- Backend com **196 testes passando** em `./mvnw test`.
+- Backend com **206 testes passando** em `./mvnw test`.
 - Frontend com **29 testes passando** em `npm test` e `0` vulnerabilidades no `npm audit`.
 - Frontend conectado a API real em todas as rotas ativas.
 - Integracao CEP implementada ponta a ponta: backend gateway, `X-API-Key` restrita ao backend e autopreenchimento nos formularios de medicos e pacientes.
@@ -82,19 +82,16 @@ Rotas principais em `frontend/src/App.tsx`:
 
 ## Riscos Tecnicos e Divergencias Identificadas
 
-- **Tratamento de `ResponseStatusException` no backend:** `TratadorDeErros` possui `@ExceptionHandler(Exception.class)` sem handler dedicado para `ErrorResponseException`/`ResponseStatusException`, podendo converter status `403`/`404`/`409`/`422` de services em `500` fora de mocks.
-- **Persistencia na remocao logica sem Service:** `DisponibilidadeMedicoController.remover` e `MedicoConvenioController.desvincular` alteram a entidade sem `@Transactional` ou `save()`, exigindo correcao para persistir no MySQL.
 - **Endpoints do backend ainda sem fluxo na UI:** edicao/detalhamento/inativacao de prontuario (`PUT /prontuarios`, `GET /prontuarios/{id}`, `DELETE /prontuarios/{id}`), campos `consultaOrigemId` e `canceladoPor` na tela de consultas, e auditoria filtrada por `PRESCRICAO`/`ATESTADO` (`GET /auditoria/{recursoTipo}/{recursoId}`).
 - **Busca e indicadores client-side:** os filtros de busca nas listagens atuam apenas sobre a pagina atual carregada (`size=10`), e seletores auxiliares buscam os primeiros `100` registros.
-- **Ausencia de testes com banco real e E2E:** a suite backend usa H2 com `flyway.enabled=false` (nao testa migrations MySQL nem locks sob concorrencia real) e ainda nao ha testes E2E em navegador.
+- **Ausencia de testes com MySQL real e E2E:** a suite backend usa H2 com `flyway.enabled=false` (nao testa migrations MySQL nem locks sob concorrencia real) e ainda nao ha testes E2E em navegador.
 - **Privacidade clinica e ciclo de conta medica:** `ROLE_FUNCIONARIO` ainda possui leitura operacional completa de prontuarios/prescricoes/atestados, e usuarios `ROLE_MEDICO` continuam autenticando se o cadastro medico for inativado posteriormente.
 
 ## Proximas Fases Recomendadas
 
 As pendencias detalhadas estao priorizadas em `docs/BACKLOG.md`:
 
-1. Corrigir os desvios tecnicos pontuais do backend (`TratadorDeErros`, `@Transactional` em disponibilidade/convenios do medico e `@ParameterObject` em `AutenticacaoController`) e limpar arquivos legados sem uso no frontend.
-2. Implementar E2E smoke tests cobrindo login, navegacao por perfil, cadastros com CEP e agendamento.
-3. Fechar lacunas de integridade clinica (validacoes de retorno, duracao/conflito de agenda e elegibilidade do convenio do paciente) e conectar na UI os endpoints ja existentes no backend.
-4. Evoluir o ciclo completo de status da consulta e revisar permissoes sensiveis de `ROLE_FUNCIONARIO` e `ROLE_MEDICO` inativo.
-5. Adicionar filtros/agregacoes server-side, code splitting no frontend e testes de integracao com MySQL/Testcontainers.
+1. Implementar E2E smoke tests cobrindo login, navegacao por perfil, cadastros com CEP e agendamento, e limpar arquivos legados sem uso no frontend.
+2. Fechar lacunas de integridade clinica (validacoes de retorno, duracao/conflito de agenda e elegibilidade do convenio do paciente) e conectar na UI os endpoints ja existentes no backend.
+3. Evoluir o ciclo completo de status da consulta e revisar permissoes sensiveis de `ROLE_FUNCIONARIO` e `ROLE_MEDICO` inativo.
+4. Adicionar filtros/agregacoes server-side, code splitting no frontend e testes de integracao com MySQL/Testcontainers.

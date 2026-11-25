@@ -17,7 +17,7 @@ cd backend && ./mvnw spring-boot:run
 # Build completo do backend (usar após mudanças em @Value ou configuração)
 cd backend && ./mvnw clean package
 
-# Rodar todos os testes do backend (196 testes)
+# Rodar todos os testes do backend (206 testes)
 cd backend && ./mvnw test
 
 # Rodar uma classe de teste específica no backend

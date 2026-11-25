@@ -7,6 +7,7 @@ import med.voll.api.domain.medico.*;
 import med.voll.api.exception.ValidacaoException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -28,6 +29,7 @@ public class DisponibilidadeMedicoController {
     }
 
     @PostMapping
+    @Transactional
     @PreAuthorize("hasRole('ROLE_FUNCIONARIO')")
     @Operation(summary = "Cadastrar disponibilidade", description = "Cadastra um horário de disponibilidade para o médico")
     public ResponseEntity<DadosListagemDisponibilidade> cadastrar(
@@ -49,6 +51,7 @@ public class DisponibilidadeMedicoController {
     }
 
     @GetMapping
+    @Transactional(readOnly = true)
     @PreAuthorize("hasAnyRole('ROLE_FUNCIONARIO', 'ROLE_MEDICO', 'ROLE_AUDITOR', 'ROLE_GESTOR')")
     @Operation(summary = "Listar disponibilidade", description = "Lista os horários de disponibilidade ativos do médico")
     public ResponseEntity<List<DadosListagemDisponibilidade>> listar(@PathVariable Long medicoId) {
@@ -58,6 +61,7 @@ public class DisponibilidadeMedicoController {
     }
 
     @DeleteMapping("/{disponibilidadeId}")
+    @Transactional
     @PreAuthorize("hasRole('ROLE_FUNCIONARIO')")
     @Operation(summary = "Remover disponibilidade", description = "Inativa um horário de disponibilidade do médico")
     public ResponseEntity<Void> remover(
@@ -68,6 +72,7 @@ public class DisponibilidadeMedicoController {
                 .filter(d -> Objects.equals(d.getMedico().getId(), medicoId) && d.isAtivo())
                 .orElseThrow(() -> new ValidacaoException("Disponibilidade não encontrada para este médico"));
         disponibilidade.inativar();
+        disponibilidadeRepository.save(disponibilidade);
         return ResponseEntity.noContent().build();
     }
 }

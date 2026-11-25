@@ -11,6 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.InvalidDataAccessApiUsageException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
@@ -20,6 +21,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -100,6 +102,23 @@ public class TratadorDeErros {
     public ResponseEntity<DadosErroValidacao> tratarErroRespostaInvalidaCep(RespostaInvalidaCepException ex) {
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
                 .body(new DadosErroValidacao("cep", ex.getMessage()));
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<DadosErroValidacao> tratarResponseStatus(ResponseStatusException ex) {
+        HttpStatusCode status = ex.getStatusCode();
+        String reason = ex.getReason();
+        if (reason == null || reason.isBlank()) {
+            return ResponseEntity.status(status).build();
+        }
+        String campo = switch (status.value()) {
+            case 400, 422 -> "regra_negocio";
+            case 403 -> "acesso_negado";
+            case 404 -> "nao_encontrado";
+            case 409 -> "conflito";
+            default -> "erro";
+        };
+        return ResponseEntity.status(status).body(new DadosErroValidacao(campo, reason));
     }
 
     @ExceptionHandler(Exception.class)

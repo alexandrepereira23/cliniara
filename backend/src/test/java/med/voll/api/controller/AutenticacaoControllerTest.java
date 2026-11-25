@@ -12,17 +12,27 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springdoc.core.annotations.ParameterObject;
+import org.springframework.beans.factory.config.BeanDefinition;
+import org.springframework.context.annotation.ClassPathScanningCandidateComponentProvider;
 import org.springframework.context.annotation.Import;
+import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.bind.annotation.RestController;
 
+import java.lang.reflect.Method;
+import java.lang.reflect.Parameter;
+import java.util.ArrayList;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -276,5 +286,49 @@ class AutenticacaoControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(dados)))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("ROLE_ADMIN deve listar usuários paginados com parâmetros de ordenação")
+    void deveListarUsuariosPaginadosComAdmin() throws Exception {
+        var pagina = new PageImpl<>(
+                List.of(usuarioFuncionario()),
+                PageRequest.of(0, 5),
+                1
+        );
+        when(usuarioRepository.findAll(any(Pageable.class))).thenReturn(pagina);
+
+        mvc.perform(get("/auth/usuarios")
+                        .param("page", "0")
+                        .param("size", "5")
+                        .param("sort", "login,desc")
+                        .with(user(usuarioAdmin())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].login").value("func@test.com"))
+                .andExpect(jsonPath("$.content[0].role").value("ROLE_FUNCIONARIO"));
+    }
+
+    @Test
+    @DisplayName("todos os parâmetros Pageable nos RestControllers devem possuir @ParameterObject")
+    void todosParametrosPageableNosControllersDevemTerParameterObject() throws ClassNotFoundException {
+        var scanner = new ClassPathScanningCandidateComponentProvider(false);
+        scanner.addIncludeFilter(new AnnotationTypeFilter(RestController.class));
+
+        List<String> parametrosSemAnotacao = new ArrayList<>();
+        for (BeanDefinition bd : scanner.findCandidateComponents("med.voll.api.controller")) {
+            Class<?> controllerClass = Class.forName(bd.getBeanClassName());
+            for (Method method : controllerClass.getDeclaredMethods()) {
+                for (Parameter parameter : method.getParameters()) {
+                    if (Pageable.class.isAssignableFrom(parameter.getType())
+                            && !parameter.isAnnotationPresent(ParameterObject.class)) {
+                        parametrosSemAnotacao.add(controllerClass.getSimpleName() + "." + method.getName());
+                    }
+                }
+            }
+        }
+
+        assertThat(parametrosSemAnotacao)
+                .as("Métodos de controller com Pageable sem @ParameterObject")
+                .isEmpty();
     }
 }

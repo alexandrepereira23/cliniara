@@ -25,8 +25,10 @@ import java.time.LocalTime;
 import java.util.List;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -107,14 +109,18 @@ class DisponibilidadeMedicoControllerTest {
     }
 
     @Test
-    @DisplayName("ROLE_FUNCIONARIO deve remover disponibilidade do médico correto")
+    @DisplayName("ROLE_FUNCIONARIO deve remover disponibilidade do médico correto e persistir inativação")
     void deveRemoverDisponibilidadeDoMedicoCorreto() throws Exception {
         var medico = medicoAtivo(1000L);
-        when(disponibilidadeRepository.findById(1L)).thenReturn(Optional.of(disponibilidade(medico)));
+        var disp = disponibilidade(medico);
+        when(disponibilidadeRepository.findById(1L)).thenReturn(Optional.of(disp));
 
         mvc.perform(delete("/medicos/1000/disponibilidade/1")
                         .with(user(usuarioFuncionario())).with(csrf()))
                 .andExpect(status().isNoContent());
+
+        assertThat(disp.isAtivo()).isFalse();
+        verify(disponibilidadeRepository).save(disp);
     }
 
     @Test

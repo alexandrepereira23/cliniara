@@ -71,14 +71,14 @@ Este documento organiza as fases do projeto. Pendencias detalhadas e melhorias f
 - Marcacao de `docs/EVOLUCAO_ARQUITETURA.md` como documento historico.
 - Consolidacao de `docs/BACKLOG.md` como fonte centralizada de pendencias reais de codigo, integridade e UX.
 - Mitigacao e correcao das vulnerabilidades do frontend via `npm audit fix` (0 vulnerabilidades remanescentes).
+- Correcao de aderencia no backend: handler dedicado para `ResponseStatusException` em `TratadorDeErros`, persistencia transacional em `DisponibilidadeMedicoController` / `MedicoConvenioController` e `@ParameterObject` em todos os endpoints paginados (206 testes backend passando).
 
-## Fase Atual — Correcoes de Integridade e E2E Smoke Tests
+## Fase Atual — E2E Smoke Tests
 
-Objetivo: sanar divergencias pontuais entre backend/frontend identificadas na auditoria estatica e implementar testes ponta a ponta (E2E) cobrindo os fluxos criticos da aplicacao com navegador e stack local integrada.
+Objetivo: implementar testes ponta a ponta (E2E) cobrindo os fluxos criticos da aplicacao com navegador e stack local integrada.
 
 Entregas prioritarias desta fase:
 
-- Corrigir tratamento de `ResponseStatusException` em `TratadorDeErros`, persistencia transacional em `DisponibilidadeMedicoController.remover` / `MedicoConvenioController.desvincular` e `@ParameterObject` em `AutenticacaoController`.
 - Login e navegacao por perfil (`ROLE_ADMIN`, `ROLE_FUNCIONARIO`, `ROLE_MEDICO`).
 - Cadastro de medico com autopreenchimento de endereco via CEP.
 - Cadastro de paciente com autopreenchimento de endereco via CEP.

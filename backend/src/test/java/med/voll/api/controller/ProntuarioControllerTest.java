@@ -17,8 +17,10 @@ import org.springframework.context.annotation.Import;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -245,5 +247,69 @@ class ProntuarioControllerTest {
     void deveRejeitarRequisicaoNaoAutenticada() throws Exception {
         mvc.perform(get("/prontuarios"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("ResponseStatusException 404 do service deve retornar 404 com corpo padronizado e não 500")
+    void deveRetornar404QuandoProntuarioNaoEncontrado() throws Exception {
+        when(prontuarioService.detalhar(anyLong(), any(Usuario.class)))
+                .thenThrow(new ResponseStatusException(HttpStatus.NOT_FOUND, "Prontuário não encontrado"));
+
+        mvc.perform(get("/prontuarios/999")
+                        .with(user(usuarioMedico())))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.campo").value("nao_encontrado"))
+                .andExpect(jsonPath("$.mensagem").value("Prontuário não encontrado"));
+    }
+
+    @Test
+    @DisplayName("ResponseStatusException 409 do service deve retornar 409 com corpo padronizado e não 500")
+    void deveRetornar409QuandoProntuarioDuplicadoNaConsulta() throws Exception {
+        when(prontuarioService.criar(any(), any()))
+                .thenThrow(new ResponseStatusException(HttpStatus.CONFLICT, "Já existe um prontuário para esta consulta"));
+
+        mvc.perform(post("/prontuarios")
+                        .with(user(usuarioMedico())).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dadosCadastro())))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.campo").value("conflito"))
+                .andExpect(jsonPath("$.mensagem").value("Já existe um prontuário para esta consulta"));
+    }
+
+    @Test
+    @DisplayName("ResponseStatusException 422 do service deve retornar 422 com mensagem da janela de 24h")
+    void deveRetornar422QuandoJanelaDeEdicaoExpirada() throws Exception {
+        when(prontuarioService.atualizar(any(), any()))
+                .thenThrow(new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
+                        "Prontuário não pode ser editado após 24 horas do registro"));
+
+        var dados = new DadosAtualizacaoProntuario(1L, "nova anamnese", null, null, null);
+
+        mvc.perform(put("/prontuarios")
+                        .with(user(usuarioMedico())).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dados)))
+                .andExpect(status().isUnprocessableEntity())
+                .andExpect(jsonPath("$.campo").value("regra_negocio"))
+                .andExpect(jsonPath("$.mensagem").value("Prontuário não pode ser editado após 24 horas do registro"));
+    }
+
+    @Test
+    @DisplayName("ResponseStatusException 403 de ownership no service deve retornar 403 e não 500")
+    void deveRetornar403QuandoMedicoTentaEditarProntuarioDeOutro() throws Exception {
+        when(prontuarioService.atualizar(any(), any()))
+                .thenThrow(new ResponseStatusException(HttpStatus.FORBIDDEN,
+                        "Apenas o médico responsável pode editar o prontuário"));
+
+        var dados = new DadosAtualizacaoProntuario(1L, "nova anamnese", null, null, null);
+
+        mvc.perform(put("/prontuarios")
+                        .with(user(usuarioMedico())).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dados)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.campo").value("acesso_negado"))
+                .andExpect(jsonPath("$.mensagem").value("Apenas o médico responsável pode editar o prontuário"));
     }
 }
