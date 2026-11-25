@@ -1,115 +1,152 @@
 # Contratos de API — Frontend ↔ Backend
 
-Base URL: `http://localhost:8080`  
-Auth: `Authorization: Bearer <tokenJWT>` em todas as requisições (exceto `/auth/login`).
+- **Base URL no Axios (`src/api/axios.ts`):** `import.meta.env.VITE_API_BASE_URL ?? '/api'`
+  - Dev local (`vite.config.ts`): `/api/*` → `http://localhost:8080/*`
+  - Docker local (`nginx.conf`): `/api/*` → `http://backend:8080/*`
+  - Produção (Vercel → VPS Caddy): `https://api-vollmed.usenexora.online/api/*` → `backend:8080/*`
+- **Auth:** `Authorization: Bearer <tokenJWT>` injetado automaticamente em todas as requisições, exceto `POST /auth/login`.
 
-Perfis de acesso recomendados:
+Perfis de acesso (`Role` em `src/types/auth.ts`):
 
-- `ROLE_ADMIN`: administração técnica e cadastro de usuários. Não acessa dados clínicos nem cadastros operacionais por padrão.
-- `ROLE_FUNCIONARIO`: operação da clínica, agenda, cadastros e leitura operacional.
-- `ROLE_MEDICO`: atendimento clínico e acesso aos próprios dados assistenciais.
-- `ROLE_AUDITOR`/`ROLE_GESTOR`: leitura ampla, auditoria LGPD e relatórios sensíveis.
+- `ROLE_ADMIN`: administração técnica, cadastro/listagem de usuários e consulta de CEP. Não acessa dados clínicos nem cadastros operacionais por padrão.
+- `ROLE_FUNCIONARIO`: operação da clínica, agenda, cadastros, convênios, CEP e leitura operacional.
+- `ROLE_MEDICO`: atendimento clínico, agenda própria, prontuários próprios e IA clínica.
+- `ROLE_AUDITOR` / `ROLE_GESTOR`: leitura ampla, inativação administrativa de prontuários e auditoria LGPD.
 
 ---
 
-## Autenticação
+## Autenticação (`src/api/auth.ts`)
 
-### POST /auth/login
+### `POST /auth/login` (Público)
 ```ts
-// Request
+// Request (LoginPayload)
 { login: string, senha: string }
 
-// Response 200
+// Response 200 (TokenResponse)
 { tokenJWT: string }
 
-// Response 400 (credenciais inválidas)
-// Spring Security retorna 403 — tratar como "credenciais inválidas"
+// Response 401 — credenciais inválidas (texto simples retornado por TratadorDeErros)
+"Credenciais inválidas"
+
+// Response 429 — RateLimitFilter em /auth/* (máx. 10 req/IP em 15 min)
+{ erro: "Muitas tentativas. Aguarde 15 minutos antes de tentar novamente." }
 ```
 
-### POST /auth/cadastro (ROLE_ADMIN)
+### `POST /auth/cadastro` (`ROLE_ADMIN`)
 ```ts
-// Request
-// medicoId é obrigatório para ROLE_MEDICO e deve apontar para um médico ativo ainda sem usuário vinculado.
-{ login: string, senha: string, role: 'ROLE_FUNCIONARIO' | 'ROLE_MEDICO' | 'ROLE_AUDITOR' | 'ROLE_GESTOR', medicoId?: number }
-
-// Response 201
-{ id: number, login: string, role: 'ROLE_FUNCIONARIO' | 'ROLE_MEDICO' | 'ROLE_AUDITOR' | 'ROLE_GESTOR' }
-
-// Response 409 — login já existe, ou medicoId inexistente/inativo/já vinculado quando role=ROLE_MEDICO
-// Corpo do 409: { campo: "conflito", mensagem: string } — a mensagem distingue a causa, não presumir "login duplicado" por padrão
-// Response 400 — medicoId ausente para ROLE_MEDICO ou informado para outro perfil
-// Response 403 — tentativa de criar ROLE_ADMIN, ou usuário autenticado sem ROLE_ADMIN
-```
-
-### GET /auth/usuarios (ROLE_ADMIN)
-```ts
-// Response 200 — Page<UsuarioDetalhamento>
-{ content: Array<{ id: number, login: string, role: string }>, totalElements: number, totalPages: number, number: number, size: number }
-```
-
-### GET /auth/medicos-disponiveis (ROLE_ADMIN)
-```ts
-// Retorna apenas médicos ativos que ainda não possuem usuário vinculado — para o formulário
-// de cadastro de usuário ROLE_MEDICO. Não usar GET /medicos para essa finalidade: esse
-// endpoint operacional não autoriza ROLE_ADMIN e, se autorizasse, incluiria médicos já vinculados.
-
-// Response 200 — Page<{ id: number, nome: string, crm: string }>
-{ content: Array<{ id: number, nome: string, crm: string }>, totalElements: number, totalPages: number, number: number, size: number }
-
-// Response 403 — perfil diferente de ROLE_ADMIN
-```
-
----
-
-## Especialidades
-
-### GET /especialidades (ROLE_FUNCIONARIO / ROLE_MEDICO / ROLE_AUDITOR / ROLE_GESTOR)
-```ts
-// Response 200 — Page<Especialidade>
+// Request (CadastroUsuarioPayload)
+// medicoId é obrigatório para ROLE_MEDICO e proibido para os demais perfis.
 {
-  content: Array<{ id: number, nome: string }>,
-  totalElements: number, totalPages: number, number: number, size: number
+  login: string,
+  senha: string,
+  role: 'ROLE_FUNCIONARIO' | 'ROLE_MEDICO' | 'ROLE_AUDITOR' | 'ROLE_GESTOR',
+  medicoId?: number
+}
+
+// Response 201 (UsuarioDetalhamento)
+{ id: number, login: string, role: Role }
+
+// Response 409 — login duplicado ou medicoId inexistente/inativo/já vinculado
+{ campo: "conflito", mensagem: string }
+
+// Response 400 — validação (@Valid) ou regra de negócio (medicoId ausente/indevido)
+// Response 403 — tentativa de criar ROLE_ADMIN ou usuário sem ROLE_ADMIN
+```
+
+### `GET /auth/usuarios` (`ROLE_ADMIN`)
+```ts
+// Query: ?page=0&size=10&sort=login,asc
+// Response 200 — Page<UsuarioDetalhamento>
+{
+  content: Array<{ id: number, login: string, role: Role }>,
+  totalElements: number,
+  totalPages: number,
+  number: number,
+  size: number
 }
 ```
 
-### POST /especialidades (ROLE_FUNCIONARIO)
+### `GET /auth/medicos-disponiveis` (`ROLE_ADMIN`)
 ```ts
-// Request
-{ nome: string }
-
-// Response 201
-{ id: number, nome: string, ativo: boolean }
-
-// Response 409 — nome duplicado (case-insensitive)
-```
-
-### GET /especialidades/{id} (ROLE_FUNCIONARIO / ROLE_MEDICO / ROLE_AUDITOR / ROLE_GESTOR)
-```ts
-// Response 200
-{ id: number, nome: string, ativo: boolean }
-```
-
-### PUT /especialidades/{id} (ROLE_FUNCIONARIO)
-```ts
-// Request
-{ nome: string }
-
-// Response 200
-{ id: number, nome: string, ativo: boolean }
-```
-
-### DELETE /especialidades/{id} (ROLE_FUNCIONARIO)
-```ts
-// Response 204
+// Retorna apenas médicos ativos ainda sem usuário vinculado (projeção mínima para Users.tsx).
+// Query padrão no frontend: ?page=0&size=100&sort=nome,asc
+// Response 200 — Page<MedicoDisponivelVinculoUsuario>
+{
+  content: Array<{ id: number, nome: string, crm: string }>,
+  totalElements: number,
+  totalPages: number,
+  number: number,
+  size: number
+}
 ```
 
 ---
 
-## Médicos
+## Endereços e CEP (`src/api/cep.ts`)
 
-### POST /medicos (ROLE_FUNCIONARIO)
+### `GET /enderecos/cep/{cep}` (`ROLE_FUNCIONARIO` / `ROLE_ADMIN`)
 ```ts
-// Request
+// Parâmetro {cep}: aceita 8 dígitos ("01001000") ou com máscara ("01001-000").
+// O backend atua como gateway seguro (ACL) injetando X-API-Key para o serviço Consultar-Cep.
+
+// Response 200 (EnderecoCepResponse)
+{
+  cep: string,
+  logradouro: string,
+  bairro: string,
+  cidade: string,
+  uf: string,
+  complemento?: string
+}
+
+// Responses de erro (objeto JSON único):
+// 400: { campo: "cep", mensagem: "CEP inválido. Deve conter 8 dígitos numéricos." }
+// 404: { campo: "cep", mensagem: "CEP não encontrado: ..." }
+// 502: { campo: "cep", mensagem: "Resposta inválida ou incompleta da API de CEP." }
+// 503: { campo: "cep", mensagem: "Serviço de consulta de CEP temporariamente indisponível." }
+```
+
+---
+
+## Especialidades (`src/api/especialidades.ts`)
+
+### `GET /especialidades` (`ROLE_FUNCIONARIO` / `ROLE_MEDICO` / `ROLE_AUDITOR` / `ROLE_GESTOR`)
+```ts
+// Response 200 — Page<EspecialidadeListagem> (default size=20)
+{ content: Array<{ id: number, nome: string }>, totalElements: number, totalPages: number, number: number, size: number }
+```
+
+### `GET /especialidades/{id}` (`ROLE_FUNCIONARIO` / `ROLE_MEDICO` / `ROLE_AUDITOR` / `ROLE_GESTOR`)
+```ts
+// Response 200
+{ id: number, nome: string, ativo: boolean }
+```
+
+### `POST /especialidades` (`ROLE_FUNCIONARIO`)
+```ts
+// Request: { nome: string }
+// Response 201: { id: number, nome: string, ativo: boolean }
+// Response 409: { campo: "conflito", mensagem: "Já existe uma especialidade com este nome." }
+```
+
+### `PUT /especialidades/{id}` (`ROLE_FUNCIONARIO`)
+```ts
+// Request: { nome: string }
+// Response 200: { id: number, nome: string, ativo: boolean }
+```
+
+### `DELETE /especialidades/{id}` (`ROLE_FUNCIONARIO`)
+```ts
+// Response 204 — exclusão lógica
+```
+
+---
+
+## Médicos (`src/api/medicos.ts`)
+
+### `POST /medicos` (`ROLE_FUNCIONARIO`)
+```ts
+// Request (MedicoCadastro)
 {
   nome: string,
   email: string,
@@ -119,306 +156,376 @@ Perfis de acesso recomendados:
   endereco: {
     logradouro: string, bairro: string, cep: string,
     cidade: string, uf: string,
-    complemento?: string, numero?: string
+    numero?: string, complemento?: string
   }
 }
 
-// Response 201
-{
-  id: number, nome: string, email: string, crm: string,
-  telefone: string, especialidade: string, endereco: Endereco
-}
+// Response 201 (MedicoDetalhamento)
+{ id: number, nome: string, email: string, crm: string, telefone: string, especialidade: string, endereco: EnderecoPayload }
 ```
 
-### GET /medicos?page=0&size=10 (ROLE_FUNCIONARIO / ROLE_MEDICO / ROLE_AUDITOR / ROLE_GESTOR)
+### `GET /medicos?page=0&size=10` (`ROLE_FUNCIONARIO` / `ROLE_MEDICO` / `ROLE_AUDITOR` / `ROLE_GESTOR`)
 ```ts
-// Response 200 — Page<MedicoListagem>
-{ content: Array<{ id, nome, email, crm, especialidade }>, ... }
+// Response 200 — Page<MedicoListagem> (ROLE_MEDICO recebe apenas o próprio registro)
+{ content: Array<{ id: number, nome: string, email: string, crm: string, especialidade: string }>, ... }
 ```
 
-### GET /medicos/{id} (ROLE_FUNCIONARIO / ROLE_MEDICO / ROLE_AUDITOR / ROLE_GESTOR)
+### `GET /medicos/{id}` (`ROLE_FUNCIONARIO` / `ROLE_MEDICO` / `ROLE_AUDITOR` / `ROLE_GESTOR`)
 ```ts
-// Response 200 — MedicoCompleto
-{ id, nome, email, crm, telefone, especialidade, endereco }
+// Response 200 — MedicoDetalhamento
+{ id: number, nome: string, email: string, crm: string, telefone: string, especialidade: string, endereco: EnderecoPayload }
 ```
 
-### PUT /medicos (ROLE_FUNCIONARIO)
+### `PUT /medicos` (`ROLE_FUNCIONARIO`)
 ```ts
-// Request — apenas campos alteráveis
-{ id: number, nome?: string, telefone?: string, endereco?: Partial<Endereco> }
-
-// Response 200 — MedicoCompleto
+// Request (MedicoAtualizacao)
+{ id: number, nome?: string, telefone?: string, endereco?: Partial<EnderecoPayload> }
+// Response 200 — MedicoDetalhamento
 ```
 
-### DELETE /medicos/{id} (ROLE_FUNCIONARIO)
+### `DELETE /medicos/{id}` (`ROLE_FUNCIONARIO`)
 ```ts
-// Response 204 — soft delete
+// Response 204 — exclusão lógica
 ```
 
 ---
 
-## Disponibilidade do Médico
+## Disponibilidade do Médico (`src/api/disponibilidade.ts`)
 
-### POST /medicos/{id}/disponibilidade (ROLE_FUNCIONARIO)
+### `POST /medicos/{medicoId}/disponibilidade` (`ROLE_FUNCIONARIO`)
 ```ts
-// Request
-{ diaSemana: 'MONDAY'|'TUESDAY'|'WEDNESDAY'|'THURSDAY'|'FRIDAY'|'SATURDAY', horaInicio: string, horaFim: string }
+// Request (DisponibilidadeCadastro)
+{ diaSemana: DiaSemana, horaInicio: string, horaFim: string }
 
-// Response 201
-{ id, medicoId, diaSemana, horaInicio, horaFim, ativo }
+// Response 201 (DisponibilidadeListagem)
+{ id: number, medicoId: number, diaSemana: DiaSemana, horaInicio: string, horaFim: string, ativo: boolean }
 ```
 
-### GET /medicos/{id}/disponibilidade (ROLE_FUNCIONARIO / ROLE_MEDICO / ROLE_AUDITOR / ROLE_GESTOR)
+### `GET /medicos/{medicoId}/disponibilidade` (`ROLE_FUNCIONARIO` / `ROLE_MEDICO` / `ROLE_AUDITOR` / `ROLE_GESTOR`)
 ```ts
-// Response 200 — Array<Disponibilidade>
+// Response 200 — Array<DisponibilidadeListagem>
 ```
 
-### DELETE /medicos/{id}/disponibilidade/{dispId} (ROLE_FUNCIONARIO)
+### `DELETE /medicos/{medicoId}/disponibilidade/{disponibilidadeId}` (`ROLE_FUNCIONARIO`)
 ```ts
-// Response 204
+// Response 204 — inativação lógica
 ```
 
 ---
 
-## Pacientes
+## Pacientes (`src/api/pacientes.ts`)
 
-### POST /pacientes (ROLE_FUNCIONARIO)
+### `POST /pacientes` (`ROLE_FUNCIONARIO`)
 ```ts
-// Request
-{ nome, email, telefone, cpf: string (11 dígitos), endereco: Endereco }
+// Request (PacienteCadastro)
+{ nome: string, email: string, telefone: string, cpf: string, endereco: EnderecoPayload }
 
-// Response 201
-{ id, nome, email, telefone, cpf, endereco, ativo }
+// Response 201 (PacienteDetalhamento)
+{ id: number, nome: string, email: string, telefone: string, cpf: string, endereco: EnderecoPayload, ativo: boolean }
 ```
 
-### GET /pacientes?page=0&size=10 (ROLE_FUNCIONARIO / ROLE_AUDITOR / ROLE_GESTOR; ROLE_MEDICO apenas vinculados)
+### `GET /pacientes?page=0&size=10` (`ROLE_FUNCIONARIO` / `ROLE_AUDITOR` / `ROLE_GESTOR`; `ROLE_MEDICO` apenas vinculados)
 ```ts
 // Response 200 — Page<PacienteListagem>
+{ content: Array<{ id: number, nome: string, email: string, cpf: string }>, ... }
 ```
 
-### GET /pacientes/{id} (ROLE_FUNCIONARIO / ROLE_AUDITOR / ROLE_GESTOR; ROLE_MEDICO apenas vinculados)
+### `GET /pacientes/{id}` (`ROLE_FUNCIONARIO` / `ROLE_AUDITOR` / `ROLE_GESTOR`; `ROLE_MEDICO` apenas vinculados)
 ```ts
-// Response 200 — PacienteCompleto
+// Response 200 — PacienteDetalhamento
 ```
 
-### PUT /pacientes (ROLE_FUNCIONARIO)
+### `PUT /pacientes` (`ROLE_FUNCIONARIO`)
 ```ts
-// Request
-{ id: number, nome?: string, telefone?: string, endereco?: Partial<Endereco> }
+// Request (PacienteAtualizacao)
+{ id: number, nome?: string, telefone?: string, endereco?: Partial<EnderecoPayload> }
+// Response 200 — PacienteDetalhamento
 ```
 
-### DELETE /pacientes/{id} (ROLE_FUNCIONARIO)
+### `DELETE /pacientes/{id}` (`ROLE_FUNCIONARIO`)
 ```ts
-// Response 204
+// Response 204 — exclusão lógica
 ```
 
 ---
 
-## Consultas
+## Consultas (`src/api/consultas.ts`)
 
-### POST /consultas (ROLE_FUNCIONARIO)
+### `POST /consultas` (`ROLE_FUNCIONARIO`)
 ```ts
-// Request
+// Request (ConsultaAgendamento)
+// Nota: consultaOrigemId já existe no contrato e no backend, mas ainda não possui campo no modal de Appointments.tsx.
 {
   idPaciente: number,
-  idMedico?: number,           // opcional — sistema escolhe se omitido
-  data: string,                // ISO 8601: "2025-12-10T10:00:00"
-  prioridade: 'ROTINA' | 'PRIORITARIO' | 'URGENCIA',
-  consultaOrigemId?: number,   // para retorno
+  idMedico?: number,           // opcional — sistema escolhe médico disponível se omitido
+  data: string,                // ISO 8601: "2026-05-15T10:00:00"
+  prioridade?: 'ROTINA' | 'PRIORITARIO' | 'URGENCIA',
+  consultaOrigemId?: number,   // retorno em até 30 dias
   convenioId?: number
 }
 
-// Response 200
-{ id, idMedico, idPaciente, data, prioridade, tipo, convenioId, motivoCancelamento }
+// Response 200 (DadosDetalhamentoConsulta)
+{
+  id: number,
+  idMedico: number,
+  idPaciente: number,
+  data: string,
+  prioridade: 'ROTINA' | 'PRIORITARIO' | 'URGENCIA',
+  tipo: 'NORMAL' | 'RETORNO',
+  consultaOrigemId: number | null,
+  convenioId: number | null
+}
 ```
 
-### GET /consultas?page=0&size=10 (ROLE_FUNCIONARIO / ROLE_AUDITOR / ROLE_GESTOR / ROLE_MEDICO)
+### `GET /consultas?page=0&size=10` (`ROLE_FUNCIONARIO` / `ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
 ```ts
-// Response 200 — Page<ConsultaListagem>
-// ROLE_MEDICO vê apenas suas consultas
+// Response 200 — Page<ConsultaListagem> (ROLE_MEDICO vê apenas suas consultas)
+{
+  content: Array<{
+    id: number,
+    nomeMedico: string,
+    nomePaciente: string,
+    dataHora: string,
+    prioridade: 'ROTINA' | 'PRIORITARIO' | 'URGENCIA',
+    tipo: 'NORMAL' | 'RETORNO'
+  }>,
+  ...
+}
 ```
 
-### DELETE /consultas (ROLE_FUNCIONARIO)
+### `DELETE /consultas` (`ROLE_FUNCIONARIO`)
 ```ts
-// Request
-{ idConsulta: number, motivo: 'PACIENTE_DESISTIU'|'MEDICO_CANCELOU'|'OUTROS', canceladoPor?: 'PACIENTE'|'CLINICA' }
+// Request (ConsultaCancelamento) — enviado no body do DELETE
+// Nota: canceladoPor é suportado pelo backend, mas ainda não exposto no modal de Appointments.tsx.
+{
+  idConsulta: number,
+  motivo: 'PACIENTE_DESISTIU' | 'MEDICO_CANCELOU' | 'OUTROS',
+  canceladoPor?: 'PACIENTE' | 'CLINICA'
+}
 
 // Response 204
 ```
 
 ---
 
-## Prontuários
+## Prontuários (`src/api/prontuarios.ts`)
 
-### POST /prontuarios (ROLE_MEDICO)
+### `POST /prontuarios` (`ROLE_MEDICO`)
 ```ts
-// Request
+// Request (ProntuarioCadastro)
 { consultaId: number, anamnese: string, diagnostico: string, cid10?: string, observacoes?: string }
 
-// Response 201
-{ id, consultaId, nomeMedico, nomePaciente, anamnese, diagnostico, cid10, observacoes, dataRegistro }
+// Response 201 (ProntuarioDetalhamento)
+{ id: number, consultaId: number, nomeMedico: string, nomePaciente: string, anamnese: string, diagnostico: string, cid10?: string, observacoes?: string, dataRegistro: string }
 ```
 
-### GET /prontuarios (ROLE_FUNCIONARIO operacional / ROLE_AUDITOR / ROLE_GESTOR / ROLE_MEDICO)
+### `GET /prontuarios` (`ROLE_FUNCIONARIO` operacional / `ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
+```ts
+// Response 200 — Page<ProntuarioListagem> (ROLE_MEDICO vê apenas os seus)
+{ content: Array<{ id: number, consultaId: number, nomePaciente: string, diagnostico: string, dataRegistro: string }>, ... }
+```
+
+### `GET /prontuarios/{id}` (`ROLE_FUNCIONARIO` operacional / `ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
+```ts
+// Disponível em prontuariosApi.get(id), ainda sem modal de detalhamento em MedicalRecords.tsx.
+// Response 200 — ProntuarioDetalhamento
+```
+
+### `GET /prontuarios/paciente/{pacienteId}` (`ROLE_FUNCIONARIO` operacional / `ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
 ```ts
 // Response 200 — Page<ProntuarioListagem>
-// ROLE_MEDICO vê apenas seus prontuários
 ```
 
-### GET /prontuarios/{id} (ROLE_FUNCIONARIO operacional / ROLE_AUDITOR / ROLE_GESTOR / ROLE_MEDICO)
+### `PUT /prontuarios` (`ROLE_MEDICO`) — *Disponível no backend, pendente no frontend*
 ```ts
-// Response 200 — ProntuarioCompleto
-```
-
-### GET /prontuarios/paciente/{pacienteId} (ROLE_FUNCIONARIO operacional / ROLE_AUDITOR / ROLE_GESTOR / ROLE_MEDICO)
-```ts
-// Response 200 — Page<ProntuarioListagem>
-```
-
-### PUT /prontuarios (ROLE_MEDICO)
-```ts
-// Request — janela de 24h após criação
+// Request — edição pelo médico autor dentro da janela de 24h após criação
 { id: number, anamnese?: string, diagnostico?: string, cid10?: string, observacoes?: string }
-
-// Response 200
-// Response 422 — fora da janela de 24h
+// Response 200 — ProntuarioDetalhamento | Response 422 — janela de 24h expirada
 ```
 
-### DELETE /prontuarios/{id} (ROLE_AUDITOR / ROLE_GESTOR)
+### `DELETE /prontuarios/{id}` (`ROLE_AUDITOR` / `ROLE_GESTOR`) — *Disponível no backend, pendente no frontend*
 ```ts
-// Response 204
+// Response 204 — inativação lógica administrativa
 ```
 
 ---
 
-## Prescrições
+## Prescrições (`src/api/prescricoes.ts`)
 
-### POST /prescricoes (ROLE_MEDICO)
+### `POST /prescricoes` (`ROLE_MEDICO`)
 ```ts
-// Request
+// Request (PrescricaoCadastro)
 {
   prontuarioId: number,
   tipo: 'SIMPLES' | 'ESPECIAL',
   itens: Array<{ medicamento: string, dosagem: string, posologia: string, duracao: string }>
 }
 
-// Response 201
-{ id, prontuarioId, tipo, dataEmissao, dataValidade, itens }
+// Response 201 (PrescricaoDetalhamento)
+{ id: number, prontuarioId: number, tipo: 'SIMPLES' | 'ESPECIAL', dataEmissao: string, dataValidade?: string, itens: ItemPrescricaoDetalhamento[] }
 ```
 
-### GET /prescricoes/{id} (ROLE_FUNCIONARIO operacional / ROLE_AUDITOR / ROLE_GESTOR / ROLE_MEDICO)
+### `GET /prescricoes/{id}` (`ROLE_FUNCIONARIO` operacional / `ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
 ```ts
-// Response 200 — PrescricaoCompleta
+// Response 200 — PrescricaoDetalhamento
 ```
 
-### GET /prescricoes/prontuario/{prontuarioId} (ROLE_FUNCIONARIO operacional / ROLE_AUDITOR / ROLE_GESTOR / ROLE_MEDICO)
+### `GET /prescricoes/prontuario/{prontuarioId}` (`ROLE_FUNCIONARIO` operacional / `ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
 ```ts
 // Response 200 — Page<PrescricaoListagem>
 ```
 
 ---
 
-## Atestados
+## Atestados (`src/api/atestados.ts`)
 
-Implementado no frontend em `/certificates`. A tela lista por paciente e permite emissão para `ROLE_MEDICO` a partir de prontuário selecionado.
-
-### POST /atestados (ROLE_MEDICO)
+### `POST /atestados` (`ROLE_MEDICO`)
 ```ts
-// Request
+// Request (AtestadoCadastro)
 { prontuarioId: number, diasAfastamento: number, cid10?: string, observacoes?: string }
 
-// Response 201
-{ id, prontuarioId, diasAfastamento, cid10, dataEmissao, observacoes }
+// Response 201 (AtestadoDetalhamento)
+{ id: number, prontuarioId: number, diasAfastamento: number, cid10?: string, dataEmissao: string, observacoes?: string }
 ```
 
-### GET /atestados/{id} (ROLE_FUNCIONARIO operacional / ROLE_AUDITOR / ROLE_GESTOR / ROLE_MEDICO)
+### `GET /atestados/{id}` (`ROLE_FUNCIONARIO` operacional / `ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
 ```ts
-// Response 200
+// Response 200 — AtestadoDetalhamento
 ```
 
-### GET /atestados/paciente/{pacienteId} (ROLE_FUNCIONARIO operacional / ROLE_AUDITOR / ROLE_GESTOR / ROLE_MEDICO)
+### `GET /atestados/paciente/{pacienteId}` (`ROLE_FUNCIONARIO` operacional / `ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
 ```ts
 // Response 200 — Page<AtestadoListagem>
 ```
 
 ---
 
-## Convênios
+## Convênios e Vínculos (`src/api/convenios.ts`, `medicoConvenios.ts`, `convenioPaciente.ts`)
 
-### POST /convenios (ROLE_FUNCIONARIO)
+### Cadastro de Convênios (`/convenios`)
 ```ts
-// Request
-{ nome: string, codigoANS: string, tipo: 'PARTICULAR' | 'PLANO' }
+// POST /convenios (ROLE_FUNCIONARIO)
+// Request: { nome: string, codigoANS: string, tipo: 'PARTICULAR' | 'PLANO' }
+// Response 201: { id: number, nome: string, codigoANS: string, tipo: TipoConvenio, ativo: boolean }
+
+// GET /convenios (ROLE_FUNCIONARIO / ROLE_MEDICO / ROLE_AUDITOR / ROLE_GESTOR)
+// Response 200 — Page<ConvenioListagem>
+
+// GET /convenios/{id} (ROLE_FUNCIONARIO / ROLE_MEDICO / ROLE_AUDITOR / ROLE_GESTOR)
+// Response 200 — { id: number, nome: string, codigoANS: string, tipo: TipoConvenio, ativo: boolean }
+
+// PUT /convenios/{id} (ROLE_FUNCIONARIO)
+// Request: { nome?: string } -> Response 200
+
+// DELETE /convenios/{id} (ROLE_FUNCIONARIO) -> Response 204
 ```
 
-### GET /convenios (ROLE_FUNCIONARIO / ROLE_MEDICO / ROLE_AUDITOR / ROLE_GESTOR)
+### Convênios Aceitos pelo Médico (`/medicos/{medicoId}/convenios`)
 ```ts
-// Response 200 — Page<Convenio>
+// GET /medicos/{medicoId}/convenios (ROLE_FUNCIONARIO / ROLE_MEDICO / ROLE_AUDITOR / ROLE_GESTOR)
+// Response 200 — Array<MedicoConvenioListagem>
+
+// POST /medicos/{medicoId}/convenios (ROLE_FUNCIONARIO)
+// Request: { convenioId: number } -> Response 201 (MedicoConvenioListagem)
+
+// DELETE /medicos/{medicoId}/convenios/{convenioId} (ROLE_FUNCIONARIO) -> Response 204
 ```
 
-### GET /medicos/{id}/convenios (ROLE_FUNCIONARIO / ROLE_MEDICO / ROLE_AUDITOR / ROLE_GESTOR)
+### Convênios do Paciente (`/pacientes/{pacienteId}/convenios`)
 ```ts
-// Response 200 — Array<ConvenioMedico>
-```
+// GET /pacientes/{pacienteId}/convenios (ROLE_FUNCIONARIO / ROLE_AUDITOR / ROLE_GESTOR)
+// Response 200 — Page<ConvenioPacienteListagem> (paginado, não array puro)
+{
+  content: Array<{
+    id: number,
+    pacienteId: number,
+    nomePaciente: string,
+    convenioId: number,
+    nomeConvenio: string,
+    codigoANS?: string,
+    tipoConvenio: 'PARTICULAR' | 'PLANO',
+    numeroCarteirinha: string,
+    validade?: string
+  }>,
+  totalElements: number,
+  totalPages: number,
+  number: number,
+  size: number
+}
 
-### POST /medicos/{id}/convenios (ROLE_FUNCIONARIO)
-```ts
-// Request
-{ convenioId: number }
-```
+// POST /pacientes/{pacienteId}/convenios (ROLE_FUNCIONARIO)
+// Request: { convenioId: number, numeroCarteirinha: string, validade?: string } -> Response 201
 
-### GET /pacientes/{id}/convenios (ROLE_FUNCIONARIO / ROLE_AUDITOR / ROLE_GESTOR)
-```ts
-// Response 200 — Array<ConvenioPaciente>
-```
-
-### POST /pacientes/{id}/convenios (ROLE_FUNCIONARIO)
-```ts
-// Request
-{ convenioId: number, numeroCarteirinha: string, validade: string }
-```
-
----
-
-## IA Clínica (ROLE_MEDICO)
-
-Implementado no frontend em `frontend/src/api/ia.ts` e na rota `/clinical-ai`. A tela carrega consultas, prontuários e pacientes para evitar digitação manual de IDs.
-
-### POST /ia/pre-diagnostico
-```ts
-// Request
-{ consultaId: number, sintomas: string }
-
-// Response 200
-{ resposta: string }
-```
-
-### POST /ia/gerar-laudo
-```ts
-// Request
-{ prontuarioId: number, anotacoes: string }
-
-// Response 200
-{ resposta: string }
-```
-
-### GET /ia/resumo-historico/{pacienteId}
-```ts
-// Response 200
-{ resposta: string }
+// DELETE /pacientes/{pacienteId}/convenios/{convenioPacienteId} (ROLE_FUNCIONARIO) -> Response 204
 ```
 
 ---
 
-## Tratamento de Erros
+## Auditoria LGPD (`src/api/auditoria.ts`)
 
-| Status | Significado | Ação no frontend |
-|--------|-------------|-----------------|
-| 400 | Dados inválidos | Mostrar mensagem do campo (`{ campo: "mensagem" }`) |
-| 401 | Sem autenticação | Redirecionar para /login |
-| 403 | Sem permissão | Toast de erro "Sem permissão para esta ação" |
-| 404 | Não encontrado | Mensagem inline |
-| 409 | Conflito (duplicata) | Toast ou erro no form |
-| 422 | Regra de negócio | Toast com mensagem da API |
-| 429 | Rate limit (auth) | "Muitas tentativas. Aguarde 15 minutos." |
-| 500 | Erro interno | Toast genérico "Erro no servidor" |
+### `GET /auditoria/prontuarios/{prontuarioId}` (`ROLE_AUDITOR` / `ROLE_GESTOR`)
+```ts
+// Query padrão no frontend: ?page=0&size=20&sort=dataHora,desc
+// Response 200 — Page<AuditoriaListagem>
+{
+  content: Array<{
+    id: number,
+    prontuarioId: number,
+    recursoTipo?: 'PRONTUARIO' | 'PRESCRICAO' | 'ATESTADO',
+    recursoId?: number,
+    loginUsuario: string,
+    acao: 'VISUALIZOU' | 'CRIOU' | 'EDITOU',
+    dataHora: string,
+    ipOrigem?: string
+  }>,
+  totalElements: number,
+  totalPages: number,
+  number: number,
+  size: number
+}
+```
+
+### `GET /auditoria/{recursoTipo}/{recursoId}` (`ROLE_AUDITOR` / `ROLE_GESTOR`) — *Disponível no backend, pendente na tela `Audit.tsx`*
+```ts
+// Parâmetro recursoTipo: 'PRONTUARIO' | 'PRESCRICAO' | 'ATESTADO'
+// Response 200 — Page<AuditoriaListagem>
+```
+
+---
+
+## IA Clínica (`src/api/ia.ts` — apenas `ROLE_MEDICO`)
+
+### `POST /ia/pre-diagnostico`
+```ts
+// Request: { consultaId: number, sintomas: string }
+// Response 200: { resposta: string }
+```
+
+### `POST /ia/gerar-laudo`
+```ts
+// Request: { prontuarioId: number, anotacoes: string }
+// Response 200: { resposta: string }
+```
+
+### `GET /ia/resumo-historico/{pacienteId}`
+```ts
+// Response 200: { resposta: string }
+```
+
+---
+
+## Tratamento de Erros no Frontend
+
+Utilitário principal: `extractApiError(err, fallback)` em `src/lib/utils.ts` + interceptor em `src/api/axios.ts`.
+
+| Status | Formato retornado pelo Backend | Comportamento no Frontend |
+|--------|--------------------------------|---------------------------|
+| `400` | `[{ campo, mensagem }]` (`@Valid`) ou `{ campo, mensagem }` (`ValidacaoException` / JSON / CEP) | `extractApiError` concatena os campos ou extrai `mensagem` para exibir em toast/formulário |
+| `401` | `"Credenciais inválidas"` no login; `{ erro: "Token inválido..." }` no filtro | No login exibe mensagem de credenciais; nas demais rotas limpa `localStorage` e redireciona para `/login` |
+| `403` | `"Acesso negado"` (texto simples) | Exibe mensagem/toast de falta de permissão |
+| `404` | Vazio (`EntityNotFoundException`) ou `{ campo: "cep", mensagem }` | Tratado inline ou via fallback do `extractApiError` |
+| `409` | `{ campo: "conflito", mensagem }` | `extractApiError` exibe a mensagem específica do conflito |
+| `422` | Regra temporal clínica (ex.: janela de 24h do prontuário) | Exibe mensagem da API via toast |
+| `429` | `{ erro: "Muitas tentativas..." }` em `/auth/*` | Tratado no fluxo de login |
+| `502` / `503` | `{ campo: "cep", mensagem }` na falha/indisponibilidade do CEP | Toast amigável mantendo preenchimento manual liberado |
+| `500` | `{ campo: "erro_interno", mensagem: "Ocorreu um erro interno..." }` | Toast de erro interno |

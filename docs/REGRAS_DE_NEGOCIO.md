@@ -20,6 +20,9 @@ Este documento centraliza todas as regras de negócio implementadas na API, serv
 | 8 | Se médico não for informado, sistema escolhe aleatório com disponibilidade real | — |
 | 9 | Se não houver médico disponível, agendamento é recusado | 400 — Nenhum médico disponível |
 | 10 | Campo `prioridade` é opcional — omitido equivale a `ROTINA` | — |
+| 11 | Se `convenioId` for informado, o convênio deve existir, estar ativo e ser aceito pelo médico da consulta | 400 — Convênio não encontrado / inativo / médico não aceita |
+
+> **Observação de escopo atual:** o agendamento com `convenioId` valida o cadastro do convênio e o vínculo com o médico (`medico_convenios`), mas ainda não valida o vínculo ativo nem a validade da carteirinha do paciente (`convenio_pacientes`). Evolução prevista em `docs/BACKLOG.md`.
 
 ### Retorno de Consulta
 
@@ -157,6 +160,7 @@ Este documento centraliza todas as regras de negócio implementadas na API, serv
 | 12 | `ROLE_ADMIN` descobre médicos vinculáveis via `GET /auth/medicos-disponiveis` (projeção mínima), não via `GET /medicos` (endpoint operacional, sem acesso para ADMIN) |
 | 13 | O vínculo médico↔usuário usa bloqueio pessimista (`SELECT ... FOR UPDATE`) na linha do médico para impedir que duas requisições concorrentes vinculem o mesmo médico a usuários diferentes |
 | 14 | Criação do usuário e vínculo do médico ocorrem na mesma transação (`UsuarioService.cadastrar`); falha em qualquer etapa reverte ambas |
+| 15 | Credenciais inválidas em `POST /auth/login` retornam `401 Unauthorized` (`"Credenciais inválidas"`); tokens ausentes/expirados retornam `401`/`403` |
 
 ---
 
@@ -171,6 +175,7 @@ Modelo profissional recomendado:
 
 | Endpoint | ADMIN | FUNCIONARIO | MEDICO | AUDITOR/GESTOR |
 |----------|:-----:|:-----------:|:------:|:--------------:|
+| `POST /auth/login` | Público | Público | Público | Público |
 | `POST /auth/cadastro` | ✅ | — | — | — |
 | `GET /auth/usuarios` | ✅ | — | — | — |
 | `GET /auth/medicos-disponiveis` | ✅ | — | — | — |
@@ -178,10 +183,12 @@ Modelo profissional recomendado:
 | `PUT /especialidades/{id}` | — | ✅ | — | — |
 | `DELETE /especialidades/{id}` | — | ✅ | — | — |
 | `GET /especialidades` | — | ✅ | ✅ | ✅ |
+| `GET /especialidades/{id}` | — | ✅ | ✅ | ✅ |
 | `POST /convenios` | — | ✅ | — | — |
 | `PUT /convenios/{id}` | — | ✅ | — | — |
 | `DELETE /convenios/{id}` | — | ✅ | — | — |
 | `GET /convenios` | — | ✅ | ✅ | ✅ |
+| `GET /convenios/{id}` | — | ✅ | ✅ | ✅ |
 | `POST /medicos/{id}/convenios` | — | ✅ | — | — |
 | `GET /medicos/{id}/convenios` | — | ✅ | ✅ | ✅ |
 | `DELETE /medicos/{id}/convenios/{convenioId}` | — | ✅ | — | — |
@@ -191,12 +198,13 @@ Modelo profissional recomendado:
 | `POST /medicos` | — | ✅ | — | — |
 | `PUT /medicos` | — | ✅ | — | — |
 | `DELETE /medicos/{id}` | — | ✅ | — | — |
-| `GET /medicos` | — | ✅ | ✅ | ✅ |
+| `GET /medicos` | — | ✅ | ✅ (apenas o seu) | ✅ |
 | `GET /medicos/{id}` | — | ✅ | ✅ | ✅ |
 | `POST /pacientes` | — | ✅ | — | — |
 | `PUT /pacientes` | — | ✅ | — | — |
 | `DELETE /pacientes/{id}` | — | ✅ | — | — |
 | `GET /pacientes` | — | ✅ | ✅ (apenas vinculados) | ✅ |
+| `GET /pacientes/{id}` | — | ✅ | ✅ (apenas vinculados) | ✅ |
 | `POST /consultas` | — | ✅ | — | — |
 | `DELETE /consultas` | — | ✅ | — | — |
 | `GET /consultas` | — | ✅ | ✅ (apenas as suas) | ✅ |
@@ -206,6 +214,8 @@ Modelo profissional recomendado:
 | `POST /prontuarios` | — | — | ✅ (da sua consulta) | — |
 | `PUT /prontuarios` | — | — | ✅ (seu, em 24h) | — |
 | `GET /prontuarios` | — | ✅ (leitura operacional) | ✅ (apenas os seus) | ✅ |
+| `GET /prontuarios/{id}` | — | ✅ (leitura operacional) | ✅ (apenas os seus) | ✅ |
+| `GET /prontuarios/paciente/{id}` | — | ✅ (leitura operacional) | ✅ (apenas os seus) | ✅ |
 | `DELETE /prontuarios/{id}` | — | — | — | ✅ |
 | `POST /prescricoes` | — | — | ✅ (do seu prontuário) | — |
 | `GET /prescricoes/{id}` | — | ✅ (leitura operacional) | ✅ (apenas os seus) | ✅ |
@@ -217,7 +227,8 @@ Modelo profissional recomendado:
 | `POST /ia/pre-diagnostico` | — | — | ✅ | — |
 | `POST /ia/gerar-laudo` | — | — | ✅ | — |
 | `GET /ia/resumo-historico/{pacienteId}` | — | — | ✅ | — |
-| `GET /auditoria/**` | — | — | — | ✅ |
+| `GET /auditoria/prontuarios/{prontuarioId}` | — | — | — | ✅ |
+| `GET /auditoria/{recursoTipo}/{recursoId}` | — | — | — | ✅ |
 
 ## Pendência de Privacidade Clínica
 

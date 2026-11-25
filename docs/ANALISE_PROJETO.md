@@ -1,122 +1,100 @@
 # Analise do Projeto Voll.med
 
-Este documento consolida o estado atual do repositorio e separa funcionalidades implementadas, riscos tecnicos e proximas fases recomendadas.
+Este documento consolida o estado atual do repositorio e separa funcionalidades implementadas, riscos tecnicos e proximas fases recomendadas. Para uma avaliacao aprofundada sob a otica de processos clinicos e produto, consulte tambem `docs/ANALISE_EVOLUCAO_CLINICA.md`.
 
 ## Resumo Executivo
 
-O Voll.med esta estruturado como monorepo fullstack com backend Spring Boot, frontend React, MySQL/Flyway, Docker Compose, JWT/RBAC, IA clinica e integracao segura com o servico proprio `Consultar-Cep`.
+O Voll.med esta estruturado como monorepo fullstack com backend Spring Boot 3.5.4, frontend React 19, MySQL 8 / Flyway, Docker Compose, JWT/RBAC, IA clinica, integracao segura com o servico proprio `Consultar-Cep` e pipeline de CI/CD para deploy em VPS.
 
 Estado validado nesta revisao:
 
 - Backend completo ate a migration `V25`; proxima migration esperada: `V26`.
 - Backend com **196 testes passando** em `./mvnw test`.
-- Frontend com **29 testes passando** em `npm test`.
-- Frontend conectado a API real nos modulos principais.
-- Integracao CEP implementada ponta a ponta: backend gateway, `X-API-Key` apenas no backend e autopreenchimento nos formularios.
-- Deploy inicial: backend no Railway e frontend no Vercel.
+- Frontend com **29 testes passando** em `npm test` e `0` vulnerabilidades no `npm audit`.
+- Frontend conectado a API real em todas as rotas ativas.
+- Integracao CEP implementada ponta a ponta: backend gateway, `X-API-Key` restrita ao backend e autopreenchimento nos formularios de medicos e pacientes.
+- Infraestrutura de producao configurada: frontend na Vercel (`vollmed.usenexora.online`) e APIs + MySQL + Caddy HTTPS na VPS (`docker-compose.prod.yml`, `deploy/Caddyfile`, `.github/workflows/deploy.yml` e `docs/DEPLOY_VPS.md`).
 
 ## Estrutura Real
 
 ```text
 .
-├── backend/
-├── frontend/
-├── docs/
-├── docker-compose.yml
-├── AGENTS.md
-└── README.md
+├── .github/workflows/deploy.yml  # CI (testes + typecheck + build) e CD via SSH na VPS
+├── backend/                      # API Spring Boot 3.5.4 + Flyway + JUnit/MockMvc
+├── deploy/Caddyfile              # Proxy reverso HTTPS para as APIs na VPS
+├── docs/                         # Documentacao tecnica, regras, deploy, analises e backlog
+├── frontend/                     # SPA React 19 + Vite 7 + Tailwind v4 + Vitest
+│   └── docs/                     # Arquitetura, contratos de API e Design System do frontend
+├── .env.production.example       # Template de variaveis para producao na VPS
+├── docker-compose.prod.yml       # Stack de producao (MySQL, backend, consultacep, Caddy)
+├── docker-compose.yml            # Stack local fullstack (MySQL, backend, frontend Nginx)
+├── AGENTS.md                     # Guia rapido do repositorio para agentes
+├── CLAUDE.md                     # Contexto detalhado de arquitetura e convencoes
+└── README.md                     # Visao geral do projeto
 ```
 
 ## O Que Ja Esta Implementado
 
 ### Backend
 
-- Autenticacao JWT em `/auth/login`.
+- Autenticacao JWT em `/auth/login` e rate limiting em `/auth/*` (10 req/IP a cada 15 min).
 - RBAC com `ROLE_ADMIN`, `ROLE_FUNCIONARIO`, `ROLE_MEDICO`, `ROLE_AUDITOR` e `ROLE_GESTOR`.
-- Cadastro/listagem de usuarios por `ROLE_ADMIN`.
+- Cadastro e listagem de usuarios operacionais por `ROLE_ADMIN`.
 - Descoberta de medicos vinculaveis via `GET /auth/medicos-disponiveis`.
-- Vinculo transacional usuario-medico com bloqueio pessimista.
-- CRUD de medicos, pacientes, especialidades e convenios.
-- Agendamento/cancelamento de consultas com prioridade, retorno, disponibilidade real, convenio e `canceladoPor`.
-- Prontuario eletronico com ownership do medico e janela de edicao.
+- Vinculo transacional usuario-medico com bloqueio pessimista (`@Lock(PESSIMISTIC_WRITE)`).
+- CRUD de medicos, pacientes, especialidades e convenios com exclusao logica.
+- Agendamento e cancelamento de consultas com prioridade, retorno, disponibilidade real, convenio e `canceladoPor`.
+- Prontuario eletronico com ownership do medico e janela de edicao de 24h.
 - Prescricoes e atestados vinculados a prontuario.
-- Disponibilidade medica.
-- Convenios aceitos por medico e convenios de paciente.
-- Auditoria LGPD para prontuarios, prescricoes e atestados.
-- Auditoria JPA de entidades.
-- IA clinica restrita a `ROLE_MEDICO`.
-- Gateway seguro para consulta de CEP.
+- Disponibilidade medica e vinculos de convenios com medicos e pacientes.
+- Auditoria LGPD via AOP para prontuarios, prescricoes e atestados (`V25`) + auditoria JPA.
+- IA clinica restrita a `ROLE_MEDICO` (`claude-opus-4-7` e `claude-sonnet-4-6`).
+- Gateway seguro para consulta de CEP (`GET /enderecos/cep/{cep}`).
 
 ### Frontend
 
 Rotas principais em `frontend/src/App.tsx`:
 
-- `/login` — login.
-- `/` — dashboard operacional.
-- `/users` — usuarios, apenas `ROLE_ADMIN`.
-- `/doctors` — medicos, com busca de CEP.
-- `/patients` — pacientes, com busca de CEP.
-- `/appointments` — consultas.
-- `/medical-records` — prontuarios.
-- `/prescriptions` — prescricoes.
-- `/certificates` — atestados.
-- `/specialties` — especialidades.
-- `/insurance` — convenios.
+- `/login` — autenticacao.
+- `/` — dashboard operacional (`FuncionarioDashboard` / `MedicoDashboard`).
+- `/users` — gestao de usuarios, restrita a `ROLE_ADMIN`.
+- `/doctors` — medicos, convenios aceitos, horarios e busca de CEP.
+- `/patients` — pacientes, convenios vinculados e busca de CEP.
+- `/appointments` — agendamento e cancelamento de consultas.
+- `/medical-records` — listagem e criacao de prontuarios.
+- `/prescriptions` — consulta e emissao de prescricoes por prontuario.
+- `/certificates` — consulta por paciente e emissao de atestados por prontuario.
+- `/specialties` — especialidades medicas.
+- `/insurance` — cadastro de convenios.
 - `/availability` — disponibilidade medica.
-- `/audit` — auditoria para `ROLE_AUDITOR`/`ROLE_GESTOR`.
+- `/audit` — auditoria LGPD para `ROLE_AUDITOR`/`ROLE_GESTOR`.
 - `/clinical-ai` — IA clinica para `ROLE_MEDICO`.
 - `/404` e rota fallback — pagina nao encontrada.
 
-## Integracao CEP Consolidada
-
-A integracao com o `Consultar-Cep` foi implementada como gateway backend:
-
-- Frontend chama `GET /enderecos/cep/{cep}` no backend Voll.med.
-- Backend valida e normaliza CEP com 8 digitos.
-- Backend injeta `X-API-Key` na comunicacao backend-to-backend.
-- `CEP_API_BASE_URL` e `CEP_API_KEY` ficam no ambiente do backend.
-- Frontend nunca recebe segredo nem chama a API externa diretamente.
-- Formularios de medicos e pacientes usam a resposta para autopreencher endereco.
-- Testes cobrem service/client/controller no backend e fluxo de formulario no frontend.
-
 ## Pontos Fortes Atuais
 
-- Separacao clara de perfis e responsabilidades de acesso.
-- `ROLE_ADMIN` separado de leitura clinica e operacional.
-- Soft delete preservando historico clinico.
-- Flyway como fonte de verdade do schema.
-- Gateway de CEP evita vazamento de segredo em SPA.
-- Boa cobertura automatizada para controllers, services, seguranca, CEP e frontend critico.
-- Docker Compose funcional para stack local.
-- Documentacao tecnica distribuida em `docs/` e `frontend/docs/`.
+- Separacao clara de perfis, isolando `ROLE_ADMIN` de dados clinicos e operacionais.
+- Soft delete preservando historico clinico e integridade referencial.
+- Flyway como fonte de verdade do schema (`ddl-auto=validate`).
+- Gateway de CEP evitando exposicao de `X-API-Key` no bundle SPA.
+- Cobertura automatizada consistente em controllers, services, seguranca, CEP e fluxos criticos do frontend, validada automaticamente no GitHub Actions.
+- Stack reproduzivel localmente com Docker Compose e deploy automatizado em VPS com Caddy.
 
-## Riscos Tecnicos Atuais
+## Riscos Tecnicos e Divergencias Identificadas
 
-- Ainda nao ha E2E smoke tests cobrindo browser real contra a stack.
-- `ROLE_FUNCIONARIO` possui leitura operacional de prontuarios, prescricoes e atestados; e uma decisao sensivel que precisa revisao de minimo acesso.
-- O lock pessimista de vinculo medico-usuario nao tem teste de concorrencia real com MySQL.
-- O seletor de medicos disponiveis carrega ate 100 registros; pode precisar busca/paginacao em bases maiores.
-- Code splitting do frontend ainda nao foi otimizado.
-- O usuario `ROLE_MEDICO` pode continuar autenticando se o medico vinculado for inativado; o acesso assistencial falha em fluxos que exigem medico ativo, mas a politica final de login ainda deve ser definida.
-
-## Pendencias Reais
-
-As pendencias centralizadas estao em `docs/BACKLOG.md`. Principais itens:
-
-- E2E smoke tests.
-- Revisao de acesso de funcionarios a dados clinicos sensiveis.
-- Ciclo completo da consulta com estados adicionais.
-- Otimizacao/code splitting do frontend.
-- Melhorias de UX, loading, erro, acessibilidade e paginas de acesso negado.
+- **Tratamento de `ResponseStatusException` no backend:** `TratadorDeErros` possui `@ExceptionHandler(Exception.class)` sem handler dedicado para `ErrorResponseException`/`ResponseStatusException`, podendo converter status `403`/`404`/`409`/`422` de services em `500` fora de mocks.
+- **Persistencia na remocao logica sem Service:** `DisponibilidadeMedicoController.remover` e `MedicoConvenioController.desvincular` alteram a entidade sem `@Transactional` ou `save()`, exigindo correcao para persistir no MySQL.
+- **Endpoints do backend ainda sem fluxo na UI:** edicao/detalhamento/inativacao de prontuario (`PUT /prontuarios`, `GET /prontuarios/{id}`, `DELETE /prontuarios/{id}`), campos `consultaOrigemId` e `canceladoPor` na tela de consultas, e auditoria filtrada por `PRESCRICAO`/`ATESTADO` (`GET /auditoria/{recursoTipo}/{recursoId}`).
+- **Busca e indicadores client-side:** os filtros de busca nas listagens atuam apenas sobre a pagina atual carregada (`size=10`), e seletores auxiliares buscam os primeiros `100` registros.
+- **Ausencia de testes com banco real e E2E:** a suite backend usa H2 com `flyway.enabled=false` (nao testa migrations MySQL nem locks sob concorrencia real) e ainda nao ha testes E2E em navegador.
+- **Privacidade clinica e ciclo de conta medica:** `ROLE_FUNCIONARIO` ainda possui leitura operacional completa de prontuarios/prescricoes/atestados, e usuarios `ROLE_MEDICO` continuam autenticando se o cadastro medico for inativado posteriormente.
 
 ## Proximas Fases Recomendadas
 
-1. Implementar E2E smoke tests para login, navegacao, cadastros, CEP e agendamento.
-2. Otimizar bundle/code splitting do frontend.
-3. Definir e implementar o ciclo completo de vida da consulta.
-4. Reavaliar permissoes sensiveis de funcionario sobre dados clinicos.
-5. Evoluir IA, auditoria, relatorios e metricas administrativas.
+As pendencias detalhadas estao priorizadas em `docs/BACKLOG.md`:
 
-## Conclusao
-
-O sistema esta em estagio avancado para um projeto fullstack de gestao clinica: backend amplo, frontend operacional, CEP integrado com seguranca, IA clinica e deploy inicial. As lacunas atuais estao concentradas em validacao ponta a ponta, hardening de dependencias, privacidade clinica fina, performance frontend e evolucoes funcionais planejadas.
+1. Corrigir os desvios tecnicos pontuais do backend (`TratadorDeErros`, `@Transactional` em disponibilidade/convenios do medico e `@ParameterObject` em `AutenticacaoController`) e limpar arquivos legados sem uso no frontend.
+2. Implementar E2E smoke tests cobrindo login, navegacao por perfil, cadastros com CEP e agendamento.
+3. Fechar lacunas de integridade clinica (validacoes de retorno, duracao/conflito de agenda e elegibilidade do convenio do paciente) e conectar na UI os endpoints ja existentes no backend.
+4. Evoluir o ciclo completo de status da consulta e revisar permissoes sensiveis de `ROLE_FUNCIONARIO` e `ROLE_MEDICO` inativo.
+5. Adicionar filtros/agregacoes server-side, code splitting no frontend e testes de integracao com MySQL/Testcontainers.

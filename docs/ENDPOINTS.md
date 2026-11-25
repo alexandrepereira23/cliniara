@@ -249,16 +249,20 @@ Perfis recomendados para ambiente profissional:
 ```
 
 ### Códigos de Retorno e Tratamento de Erros
-- `HTTP 400 Bad Request`: Formato de CEP inválido (`[{"campo": "cep", "mensagem": "CEP inválido. Deve conter 8 dígitos numéricos."}]`).
-- `HTTP 404 Not Found`: CEP não encontrado (`[{"campo": "cep", "mensagem": "CEP não encontrado: ..."}]`).
-- `HTTP 502 Bad Gateway`: Resposta nula/incompleta da API externa de CEP ou erro de autenticação (`[{"campo": "cep", "mensagem": "Resposta inválida ou incompleta da API de CEP."}]`).
-- `HTTP 503 Service Unavailable`: Falha de conexão ou timeout na comunicação com a API de CEP (`[{"campo": "cep", "mensagem": "Serviço de consulta de CEP temporariamente indisponível."}]`).
+- `HTTP 400 Bad Request`: Formato de CEP inválido (`{"campo": "cep", "mensagem": "CEP inválido. Deve conter 8 dígitos numéricos."}`).
+- `HTTP 404 Not Found`: CEP não encontrado (`{"campo": "cep", "mensagem": "CEP não encontrado: ..."}`).
+- `HTTP 502 Bad Gateway`: Resposta nula/incompleta da API externa de CEP ou erro de autenticação (`{"campo": "cep", "mensagem": "Resposta inválida ou incompleta da API de CEP."}`).
+- `HTTP 503 Service Unavailable`: Falha de conexão ou timeout na comunicação com a API de CEP (`{"campo": "cep", "mensagem": "Serviço de consulta de CEP temporariamente indisponível."}`).
 
 ---
 
 ## Notas gerais
 
-- Todos os endpoints paginados aceitam `?page=0&size=10&sort=campo,asc`
-- Respostas de erro podem vir como lista de `{ "campo": "...", "mensagem": "..." }` para validação/conflito ou como mensagem simples para exceções de negócio
-- Rate limiting ativo em `/auth/*`: máx. 10 req/IP em 15 min → HTTP 429
-- Documentação interativa disponível em `/swagger-ui.html` (perfil dev)
+- Todos os endpoints paginados aceitam `?page=0&size=10&sort=campo,asc` (tamanho padrão `10`; `20` em `/especialidades` e `/auditoria/**`; `100` em `/auth/medicos-disponiveis`).
+- Padrões de corpo de erro retornados pela API (`TratadorDeErros` e filtros de segurança):
+  - **Bean Validation (`@Valid` — HTTP 400):** array JSON `[{ "campo": "...", "mensagem": "..." }]`.
+  - **Regras de negócio, conflitos, JSON malformado, ordenação inválida, CEP e erro interno (HTTP 400 / 404 / 409 / 500 / 502 / 503):** objeto JSON único `{ "campo": "...", "mensagem": "..." }`.
+  - **Credenciais inválidas / falha de autenticação no controller (HTTP 401) e acesso negado `@PreAuthorize` (HTTP 403):** texto simples (`"Credenciais inválidas"`, `"Falha na autenticação"`, `"Acesso negado"`).
+  - **Token inválido/expirado no `SecurityFillter` (HTTP 401) e Rate Limit no `RateLimitFilter` (HTTP 429):** objeto JSON `{ "erro": "..." }`.
+- Rate limiting ativo em `/auth/*`: máx. 10 req/IP em 15 min → HTTP 429.
+- Documentação interativa disponível em `/swagger-ui.html` em desenvolvimento (`springdoc.swagger-ui.enabled=true`); desabilitada em produção na VPS (`SPRINGDOC_SWAGGER_UI_ENABLED=false`).

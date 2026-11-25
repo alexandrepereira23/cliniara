@@ -3,32 +3,45 @@
 ## Run Commands
 
 ```bash
-# Start fullstack stack (MySQL + backend + frontend)
+# Start fullstack stack locally (MySQL + backend + frontend)
 docker compose --env-file backend/.env up --build
 
-# Run backend locally, if using Compose only for MySQL
+# Start only MySQL for local backend/frontend dev
+docker compose --env-file backend/.env up -d db
+
+# Run backend locally
 cd backend
 ./mvnw spring-boot:run
 
-# Run tests
+# Run backend tests
 cd backend
 ./mvnw test
+
+# Run frontend dev server, tests, typecheck and build
+cd frontend
+npm install
+npm run dev
+npm test
+npm run check
+npm run build
 ```
 
 ## Architecture
 
-- **Framework**: Spring Boot 3.5.4, Java 17, Maven
-- **Database**: MySQL 8.0 on port 3307 (via Docker host mapping; backend container uses `db:3306`)
-- **Migrations**: Flyway in `backend/src/main/resources/db/migration/`
-- **Auth**: JWT via `/auth/login` (public); other endpoints require Bearer token
-- **Soft deletes**: Entities use `ativo` field, not physical deletes
-- **Pagination**: 10 records per page (default)
-- **API Docs**: Swagger UI at `/swagger-ui.html`
+- **Backend**: Spring Boot 3.5.4, Java 17, Maven
+- **Frontend**: React 19, TypeScript 5.6, Vite 7, Tailwind CSS v4, shadcn/ui, wouter
+- **Database**: MySQL 8.0 on port 3307 locally (`db:3306` inside Docker network)
+- **Migrations**: Flyway in `backend/src/main/resources/db/migration/` (`ddl-auto=validate`)
+- **Auth**: JWT via `/auth/login` (public); all other endpoints require Bearer token + RBAC (`@PreAuthorize`)
+- **Soft deletes**: Clinical/operational entities use `ativo` field, not physical deletes
+- **Pagination**: 10 records per page by default (20 in specialties and audit endpoints; 100 in available doctors selector)
+- **API Docs**: Swagger UI at `/swagger-ui.html` (enabled in local dev, disabled in production VPS)
+- **Production & CI/CD**: Frontend on Vercel (`vollmed.usenexora.online`); APIs + MySQL + Caddy HTTPS reverse proxy on VPS (`docker-compose.prod.yml`, `deploy/Caddyfile`, `.github/workflows/deploy.yml`, see `docs/DEPLOY_VPS.md`)
 
 ## Entry Points
 
 - `ApiApplication.java` - main class
-- Controllers: `AutenticacaoController`, `MedicoController`, `PacientesController`, `ConsultaController`, `DisponibilidadeMedicoController`, `ProntuarioController`, `PrescricaoController`, `AtestadoController`, `ConvenioController`, `ConvenioPacienteController`, `AuditoriaController`, `EspecialidadeController`, `IaController`, `EnderecoController`
+- Controllers (14): `AutenticacaoController`, `MedicoController`, `MedicoConvenioController`, `PacientesController`, `ConsultaController`, `DisponibilidadeMedicoController`, `ProntuarioController`, `PrescricaoController`, `AtestadoController`, `ConvenioController`, `ConvenioPacienteController`, `AuditoriaController`, `EspecialidadeController`, `IaController`, `EnderecoController`
 
 ## Migrations applied
 
@@ -38,22 +51,23 @@ V1–V25 applied (next: V26)
 
 196 tests passing no backend. Run from `backend/`: `./mvnw test`
 29 tests passing no frontend. Run from `frontend/`: `npm test`
+CI workflow (`.github/workflows/deploy.yml`) runs backend tests, frontend tests, `npm run check`, and `npm run build` on every push/PR to `main`.
 
 - Unit/context/security/client: `ApiApplicationTests` (1), `AgendaDeConsultasTest` (17), `ProntuarioServiceTest` (7), `EspecialidadeServiceTest` (8), `UsuarioServiceTest` (11), `IaServiceTest` (6), `AuditoriaProntuarioAspectTest` (2), `SecurityFillterTest` (3), `ConsultaCepServiceTest` (10), `RestClientCepClientTest` (7)
-- Controller (`@WebMvcTest`): `ConsultaControllerTest`, `MedicoControllerTest`, `PacientesControllerTest`, `ProntuarioControllerTest`, `PrescricaoControllerTest`, `AtestadoControllerTest`, `EspecialidadeControllerTest`, `AutenticacaoControllerTest` (14), `ConvenioControllerTest`, `ConvenioPacienteControllerTest`, `MedicoConvenioControllerTest`, `DisponibilidadeMedicoControllerTest`, `AuditoriaControllerTest` (4), `EnderecoControllerTest` (8)
-- Frontend (Vitest, `frontend/`: `npm test`): 29 testes cobrindo `Users.test.tsx`, `Doctors.cep.test.tsx`, `Patients.cep.test.tsx`, `cep.test.ts`, `FuncionarioDashboard.test.tsx`, `Login.test.tsx`, `AuthContext.test.tsx`, `axios.test.ts`
+- Controller (`@WebMvcTest`): `ConsultaControllerTest` (7), `MedicoControllerTest` (8), `PacientesControllerTest` (10), `ProntuarioControllerTest` (17), `PrescricaoControllerTest` (10), `AtestadoControllerTest` (10), `EspecialidadeControllerTest` (10), `AutenticacaoControllerTest` (14), `ConvenioControllerTest` (10), `ConvenioPacienteControllerTest` (6), `MedicoConvenioControllerTest` (4), `DisponibilidadeMedicoControllerTest` (6), `AuditoriaControllerTest` (4), `EnderecoControllerTest` (8)
+- Frontend (Vitest, `frontend/`: `npm test`): 29 testes cobrindo `Users.test.tsx` (6), `FuncionarioDashboard.test.tsx` (6), `axios.test.ts` (5), `Doctors.cep.test.tsx` (3), `AuthContext.test.tsx` (3), `Patients.cep.test.tsx` (2), `Login.test.tsx` (2), `cep.test.ts` (2)
 - See `docs/TESTES.md` for full strategy
 
 ## Gotchas
 
-- `backend/.env` file must exist for backend configuration and Docker Compose command above (DB_PASSWORD=root)
-- `backend/.env.example` contains development-only defaults; copy it to `backend/.env` and change secrets outside local dev
-- Fullstack Docker Compose publishes frontend on `${FRONTEND_PORT:-3000}` and backend on `${BACKEND_PORT:-8080}`
-- `JWT_SECRET` must be configured; `.env.example` contains a development-only value that must be replaced outside local dev
-- `CEP_API_BASE_URL` (default: `http://localhost:8081`) e `CEP_API_KEY` configuram o consumo da API externa `Consultar-Cep`
+- `backend/.env` file must exist for local backend configuration and local Docker Compose (`DB_PASSWORD=root`)
+- `backend/.env.example` contains development-only defaults; copy it to `backend/.env` and replace secrets outside local dev
+- Production VPS uses `.env.production.example` → `/opt/vollmed/app/.env` with `docker-compose.prod.yml` and Caddy stripping `/api` prefix via `handle_path /api/*`
+- Fullstack local Docker Compose publishes frontend on `${FRONTEND_PORT:-3000}` and backend on `${BACKEND_PORT:-8080}`
+- `JWT_SECRET` must be configured (at least 32 characters)
+- `CEP_API_BASE_URL` (default: `http://localhost:8081` locally; `http://consultacep:8080` in prod Compose) e `CEP_API_KEY` configuram o consumo backend-to-backend da API `Consultar-Cep`
 - Endpoint `GET /enderecos/cep/{cep}` requer `ROLE_FUNCIONARIO` ou `ROLE_ADMIN`
-- MySQL container needs password: `DB_PASSWORD=root` in `.env`
-- Test database uses H2 in-memory (configured in spring-boot-starter-test)
+- Test database uses H2 in-memory with `spring.flyway.enabled=false` and `ddl-auto=create-drop`
 - `SecurityFillter` and `RateLimitFilter` have `FilterRegistrationBean` disabling auto-registration — never remove them (Spring Security 6.5+ requirement)
 - `ANTHROPIC_API_KEY` required for `/ia/*` endpoints — app starts without it but calls fail at runtime
 - IA endpoints are `ROLE_MEDICO` only — do not change to broader roles

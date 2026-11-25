@@ -57,26 +57,28 @@ Este documento organiza as fases do projeto. Pendencias detalhadas e melhorias f
 - Autopreenchimento nos cadastros de medicos e pacientes.
 - Testes backend e frontend cobrindo a integracao.
 
-### 7. Deploy Inicial e Docker
+### 7. Deploy, Infraestrutura VPS e CI/CD
 
-- Docker Compose fullstack com MySQL, backend e frontend.
-- Backend em Railway.
-- Frontend em Vercel.
-- CORS configurado para ambientes locais e Vercel.
+- Docker Compose fullstack local com MySQL, backend e frontend (`docker-compose.yml`).
+- Migração das APIs (`backend` + `consultacep`) e MySQL do Railway para VPS Linux com `docker-compose.prod.yml` e terminação HTTPS automática no Caddy (`deploy/Caddyfile`, documentado em `docs/DEPLOY_VPS.md`).
+- Pipeline de CI/CD em `.github/workflows/deploy.yml` validando testes backend, testes frontend, typecheck e build antes do deploy automatizado via SSH.
+- Frontend publicado na Vercel (`https://vollmed.usenexora.online`).
+- CORS configurado para ambientes locais, domínio oficial e previews da Vercel.
 
 ### 8. Documentacao, Backlog e Hardening de Dependencias
 
-- Atualizacao completa da documentacao (`README.md`, `docs/ENDPOINTS.md`, `docs/TESTES.md`, `docs/ANALISE_PROJETO.md`, `docs/PLANEJAMENTO.md`, `docs/DECISOES_TECNICAS.md`, `docs/REGRAS_DE_NEGOCIO.md`).
+- Atualizacao e alinhamento da documentacao tecnica (`AGENTS.md`, `CLAUDE.md`, `docs/ENDPOINTS.md`, `docs/TESTES.md`, `docs/ANALISE_PROJETO.md`, `docs/PLANEJAMENTO.md`, `docs/DECISOES_TECNICAS.md`, `docs/REGRAS_DE_NEGOCIO.md`, `docs/DEPLOY_VPS.md`, `docs/ANALISE_EVOLUCAO_CLINICA.md` e `frontend/docs/*`).
 - Marcacao de `docs/EVOLUCAO_ARQUITETURA.md` como documento historico.
-- Criacao de `docs/BACKLOG.md` como fonte centralizada de pendencias reais.
+- Consolidacao de `docs/BACKLOG.md` como fonte centralizada de pendencias reais de codigo, integridade e UX.
 - Mitigacao e correcao das vulnerabilidades do frontend via `npm audit fix` (0 vulnerabilidades remanescentes).
 
-## Fase Atual — E2E Smoke Tests
+## Fase Atual — Correcoes de Integridade e E2E Smoke Tests
 
-Objetivo: implementar testes ponta a ponta (E2E) cobrindo fluxos criticos da aplicacao com navegador e stack local integrada.
+Objetivo: sanar divergencias pontuais entre backend/frontend identificadas na auditoria estatica e implementar testes ponta a ponta (E2E) cobrindo os fluxos criticos da aplicacao com navegador e stack local integrada.
 
 Entregas prioritarias desta fase:
 
+- Corrigir tratamento de `ResponseStatusException` em `TratadorDeErros`, persistencia transacional em `DisponibilidadeMedicoController.remover` / `MedicoConvenioController.desvincular` e `@ParameterObject` em `AutenticacaoController`.
 - Login e navegacao por perfil (`ROLE_ADMIN`, `ROLE_FUNCIONARIO`, `ROLE_MEDICO`).
 - Cadastro de medico com autopreenchimento de endereco via CEP.
 - Cadastro de paciente com autopreenchimento de endereco via CEP.

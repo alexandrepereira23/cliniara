@@ -2,22 +2,39 @@
 
 ## Visao Geral
 
-Este arquivo centraliza melhorias futuras, pendencias conhecidas e proximas funcionalidades do Voll.med. Itens aqui nao devem ser descritos como implementados em outros documentos ate que sejam entregues e validados.
+Este arquivo centraliza melhorias futuras, correcoes tecnicas mapeadas, pendencias conhecidas e proximas funcionalidades do Voll.med. Itens aqui nao devem ser descritos como implementados em outros documentos ate que sejam entregues e validados.
 
 ## Prioridade Alta
 
+### Correcoes Tecnicas de Integridade (Backend & Frontend)
+
+- **`TratadorDeErros` vs `ResponseStatusException`:** adicionar handler especifico para `ResponseStatusException` / `ErrorResponseException` antes de `@ExceptionHandler(Exception.class)` para preservar os status `403`, `404`, `409` e `422` lancados pelos services, cobrindo com testes `@WebMvcTest`.
+- **Persistencia na exclusao logica de disponibilidade e convenios do medico:** adicionar `@Transactional` (ou camada de service / `save()` explicito) em `DisponibilidadeMedicoController.remover` e `MedicoConvenioController.desvincular`, com testes integrados validando o `UPDATE` no banco.
+- **Swagger em `AutenticacaoController`:** adicionar `@ParameterObject` nos parametros `Pageable` de `GET /auth/usuarios` e `GET /auth/medicos-disponiveis`.
+- **Validacoes clinicas da agenda e retorno (`AgendaDeConsultas`):**
+  - Validar no retorno (`consultaOrigemId`) se o paciente e o mesmo da consulta original, se a data do retorno e posterior a consulta de origem e permitir novo retorno caso o anterior tenha sido cancelado.
+  - Validar no agendamento com `convenioId` se o paciente possui vinculo ativo e carteirinha dentro da validade (`convenio_pacientes`).
+  - Validar `horaInicio < horaFim` e impedir sobreposicao de intervalos no cadastro de disponibilidade medica.
+- **Limpeza de codigo legado no frontend:** remover artefatos de template nao importados pelas rotas ativas (`frontend/src/lib/mockData.ts`, `frontend/src/pages/Home.tsx`, `frontend/src/components/ManusDialog.tsx` e `frontend/src/components/Map.tsx`).
+
+### Alinhamento de Funcionalidades Backend -> Frontend
+
+- **Prontuarios (`/medical-records`):** adicionar visualizacao detalhada (`GET /prontuarios/{id}`), edicao pelo medico dentro da janela de 24h (`PUT /prontuarios`) e inativacao para auditor/gestor (`DELETE /prontuarios/{id}`).
+- **Consultas (`/appointments`):** expor selecao de `consultaOrigemId` para agendamento de retorno e campo `canceladoPor` (`PACIENTE` | `CLINICA`) no modal de cancelamento.
+- **Auditoria (`/audit`):** expor consulta de trilha por tipo de recurso clinico (`GET /auditoria/{recursoTipo}/{recursoId}` para `PRONTUARIO`, `PRESCRICAO` e `ATESTADO`).
+- **Revisao de navegacao para `ROLE_AUDITOR` e `ROLE_GESTOR`:** alinhar rotas acessiveis no frontend com o escopo de leitura definido para cada perfil.
+
 ### E2E Smoke Tests
 
-- Login.
-- Navegacao principal.
-- Cadastro de medico.
-- Cadastro de paciente.
-- Busca de CEP nos formularios.
+- Login e redirecionamento inicial por perfil.
+- Navegacao principal (`ROLE_ADMIN`, `ROLE_FUNCIONARIO`, `ROLE_MEDICO`, `ROLE_AUDITOR`/`ROLE_GESTOR`).
+- Cadastro de medico com busca de CEP.
+- Cadastro de paciente com busca de CEP.
 - Agendamento de consulta.
 
 ### Ciclo Completo da Consulta
 
-Implementar e validar estados adicionais da consulta:
+Implementar e validar estados adicionais da consulta com trilha de quem alterou e quando:
 
 - Agendada.
 - Confirmada.
@@ -26,116 +43,77 @@ Implementar e validar estados adicionais da consulta:
 - Concluida.
 - Cancelada.
 - Paciente ausente.
-- Reagendada.
+- Reagendada (com vinculo historico entre agendamentos).
 
 ### Acesso de Funcionarios a Dados Clinicos
 
 Definir decisao final sobre `ROLE_FUNCIONARIO` em dados sensiveis:
 
-- Prontuarios.
-- Prescricoes.
-- Atestados.
-- Dados clinicos sensiveis.
-- Necessidade de visao resumida operacional.
+- Prontuarios, prescricoes e atestados.
+- Criacao de visao resumida operacional sem conteudo clinico sensivel (ex.: sem diagnostico/anamnese para recepcao).
+
 ### Politica de Usuario Medico com Medico Inativado
 
-Definir se usuario `ROLE_MEDICO` deve continuar autenticando quando o medico vinculado for inativado.
-
-Opcionalmente bloquear login, bloquear apenas funcionalidades assistenciais ou exigir reativacao/vinculo novo.
+Definir se usuario `ROLE_MEDICO` deve continuar autenticando quando o medico vinculado for inativado (bloquear login, bloquear apenas acoes assistenciais ou exigir reativacao/desvinculo formal), tratando tambem o destino das consultas futuras do medico inativado.
 
 ## Prioridade Media
 
-### Otimizacao e Code Splitting do Frontend
+### Otimizacao, Busca Server-Side e Escalabilidade
 
-- Avaliar lazy loading de rotas.
-- Reduzir chunks grandes do Vite.
-- Medir bundle com `npm run build`.
+- Avaliar lazy loading (`React.lazy`) das rotas em `App.tsx` e medir reducao de chunks com `npm run build`.
+- Implementar busca e filtros reais no servidor para pacientes, medicos, consultas e prontuarios (substituindo o filtro client-side restrito a pagina atual).
+- Adicionar paginacao/busca pesquisavel nos seletores de formulario (incluindo `GET /auth/medicos-disponiveis`, pacientes e medicos no agendamento).
+- Criar endpoints agregados no backend para indicadores dos dashboards (recepcao, medico e gestor).
+- Criar testes de integracao com MySQL real / Testcontainers validando todas as migrations Flyway (`V1`–`V25`) e o lock pessimista de vinculo medico-usuario sob concorrencia real.
 
-### Dashboards
+### Agenda Operacional
 
-- Melhorar cards e indicadores por perfil.
-- Adicionar metricas administrativas sem expor dados clinicos indevidos.
-- Evoluir dashboard medico com agenda e pendencias assistenciais.
+- Duracao padrao de consulta e deteccao de conflito por intervalo de tempo (nao apenas horario exato).
+- Visualizacao diaria e semanal por medico/especialidade.
+- Bloqueios pontuais de agenda, feriados e ausencias.
 
-### Consultas
+### Formularios, UX e Acessibilidade
 
-- Filtros avancados em consultas.
-- Reagendamento de consulta.
-- Melhorias na agenda/disponibilidade.
-- Visualizacao por dia/semana/medico.
+- Padronizar estados de loading, vazio e erro de carregamento (diferenciando lista vazia de falha na API).
+- Preservar dados digitados apos falhas de submissao e proteger rascunhos clinicos.
+- Criar tela dedicada de acesso negado (`403`).
+- Revisar navegacao por teclado, foco, labels e contraste (alinhando badges de status ao Design System).
 
-### Formularios e UX
+### Operacao em Producao (VPS)
 
-- Melhorias nos formularios principais.
-- Estados de loading/erro mais consistentes.
-- Validacoes visuais mais claras.
-- Preservar dados digitados apos falhas de API.
-
-### Acessibilidade e Navegacao
-
-- Revisao de foco, labels e contraste.
-- Pagina 404 ja existe; melhorar experiencia e links de retorno.
-- Criar tela dedicada de acesso negado.
-- Melhorias em tabelas/listagens.
-
-### Escalabilidade Operacional
-
-- Paginacao/busca real no seletor de medicos disponiveis (`GET /auth/medicos-disponiveis` hoje e consumido com limite pratico de 100 registros no frontend).
-- Teste de concorrencia real para vinculo medico-usuario usando MySQL/Testcontainers ou stack Docker local.
+- Rotina automatizada de backup criptografado do MySQL fora da VPS + teste periodico de restauracao.
+- Endpoint de health/readiness dedicado na API e smoke test automatico pos-deploy no GitHub Actions.
 
 ## Prioridade Baixa / Futuro
 
-### IA Clinica
+### IA Clinica Supervisionada
 
-- Melhorar prompts e avaliacao de qualidade.
-- Adicionar observabilidade de chamadas sem registrar dados sensiveis desnecessarios.
-- Criar estrategia de indisponibilidade/timeout da IA.
-- Avaliar historico e comparacao de respostas, se fizer sentido clinico e juridico.
+- Melhorar prompts, rastreabilidade de modelo/versao e avaliacao com casos sinteticos.
+- Configurar timeouts explicitos, limites de uso/custo e tratamento padronizado de indisponibilidade da API Anthropic.
+- Minimizar dados enviados e explicitar na UI o recorte do historico analisado.
 
-### Auditoria Avancada
+### Auditoria e Governanca LGPD
 
-- Filtros por usuario, periodo, recurso e acao.
-- Exportacao controlada para auditoria interna.
-- Alertas para acessos incomuns a dados sensiveis.
+- Filtros por usuario, paciente, periodo, recurso, acao e resultado (sucesso, falha, acesso negado).
+- Alertas/monitoramento caso a gravacao de auditoria falhe (hoje excecoes no aspect sao ignoradas silenciosamente para nao interromper o atendimento).
+- Exportacao controlada e politica de retencao.
 
-### Relatorios e Metricas
+### Documentos Clinicos e Novos Modulos
 
-- Relatorios administrativos.
-- Metricas de consultas por periodo.
-- Metricas por convenio.
-- Indicadores de absenteismo e cancelamento.
-
-### Documentos Clinicos
-
-- Impressao/download de prescricoes.
-- Impressao/download de atestados.
-- Layouts padronizados e auditaveis.
-
-### Convenios
-
-- Evolucao de regras de convenio.
-- Validacao de elegibilidade.
-- Relatorios por plano/particular.
-
-### UX Mobile
-
-- Melhorias de responsividade em tabelas.
-- Fluxos curtos para cadastro/consulta em telas pequenas.
-- Revisao de sidebar/menu mobile.
+- Impressao/download em PDF padronizado de prescricoes e atestados, declaracao de comparecimento e rascunho/adendos de prontuario.
+- Modulos incrementais de negocio: **Financeiro basico** (particular/recibos), **Notificacoes/Lembretes**, **Solicitacao de exames** e **Lista de espera**.
+- UX Mobile aprimorada em tabelas extensas.
+- Reformulacao dedicada do `README.md` principal para demonstracao de portfolio.
 
 ## Itens Ja Resolvidos
 
-- Vínculo usuario-medico ao criar `ROLE_MEDICO`.
-- Endpoint `GET /auth/medicos-disponiveis` para `ROLE_ADMIN`.
-- Bloqueio pessimista no vinculo medico-usuario.
-- Matriz principal de permissoes por perfil.
-- Separacao entre `ROLE_ADMIN` tecnico e perfis clinico/operacionais.
-- Integracao com CEP via gateway backend.
-- `X-API-Key` da API de CEP mantida apenas no backend.
-- Autopreenchimento de endereco em medicos e pacientes.
-- Deploy inicial com backend no Railway e frontend no Vercel.
-- Docker Compose fullstack com MySQL, backend e frontend.
-- IA clinica no backend e frontend.
-- Auditoria LGPD para prontuarios, prescricoes e atestados.
-- Especialidades como tabela em vez de enum fixo.
-- Vulnerabilidades npm no frontend corrigidas via `npm audit fix` (0 vulnerabilidades remanescentes; testes, typecheck e build validados).
+- Vinculo usuario-medico ao criar `ROLE_MEDICO` + endpoint `GET /auth/medicos-disponiveis` para `ROLE_ADMIN`.
+- Bloqueio pessimista transacional no vinculo medico-usuario.
+- Matriz principal de permissoes por perfil e separacao do `ROLE_ADMIN` tecnico.
+- Integracao com `Consultar-Cep` via gateway backend com `X-API-Key` restrita ao servidor e autopreenchimento em medicos e pacientes.
+- Infraestrutura de producao em VPS com Docker Compose, Caddy HTTPS e pipeline CI/CD no GitHub Actions (`docs/DEPLOY_VPS.md`), alem do frontend na Vercel.
+- Docker Compose fullstack local com MySQL, backend e frontend Nginx.
+- IA clinica no backend e frontend (`ROLE_MEDICO`).
+- Auditoria LGPD por recurso clinico (`V25`) para prontuarios, prescricoes e atestados.
+- Especialidades migradas de enum para entidade/tabela (`V21`).
+- Vulnerabilidades npm no frontend corrigidas via `npm audit fix` (0 vulnerabilidades remanescentes).

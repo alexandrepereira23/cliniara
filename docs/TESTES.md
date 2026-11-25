@@ -9,6 +9,7 @@ Validado nesta revisao documental:
 - Backend: **196 testes passando** com `./mvnw test` em `backend/`.
 - Frontend: **29 testes passando** com `npm test` em `frontend/`.
 - Frontend audit: **0 vulnerabilidades** reportadas em `npm audit` (corrigido com seguranca via `npm audit fix`).
+- CI/CD (`.github/workflows/deploy.yml`): executa automaticamente `./mvnw --batch-mode test`, `npm test`, `npm run check` e `npm run build` em todo push ou Pull Request para `main` antes de liberar o deploy na VPS.
 
 ## Comandos
 
@@ -149,13 +150,15 @@ A suite atual usa H2 para contexto Spring e mocks para clientes externos. A inte
 
 ## Pendencias de Teste
 
-- Criar E2E smoke tests para login.
-- Cobrir navegacao principal por perfil.
+- Cobrir em `@WebMvcTest` cenarios onde services lancam `ResponseStatusException` (`403`, `404`, `409`, `422`) junto ao `TratadorDeErros`.
+- Cobrir com teste integrado de repositorio/banco a persistencia real do soft delete em `DisponibilidadeMedicoController.remover` e `MedicoConvenioController.desvincular`.
+- Criar testes de integracao com MySQL real / Testcontainers validando a execucao das migrations Flyway (`V1`–`V25`) em banco limpo e concorrencia real no vinculo medico-usuario e agendamento.
+- Criar E2E smoke tests para login e redirecionamento por perfil.
+- Cobrir navegacao principal por perfil via E2E.
 - Cobrir cadastro de medico via UI com busca de CEP.
 - Cobrir cadastro de paciente via UI com busca de CEP.
 - Cobrir agendamento de consulta via UI.
 - Cobrir fluxo completo de consulta quando os estados adicionais forem implementados.
-- Avaliar teste de concorrencia real para vinculo medico-usuario usando MySQL/Testcontainers ou stack Docker local.
 
 ## Troubleshooting Docker Local
 

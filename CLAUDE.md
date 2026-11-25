@@ -1,60 +1,70 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Claude Code (claude.ai/code) and AI coding assistants when working with code in this repository.
 
 ## Commands
 
 ```bash
-# Subir stack fullstack (MySQL + backend + frontend) — rodar da raiz do projeto
+# Subir stack fullstack local (MySQL + backend + frontend) — rodar da raiz do projeto
 docker compose --env-file backend/.env up --build
 
 # Subir apenas o banco para desenvolvimento local
 docker compose --env-file backend/.env up -d db
 
-# Executar a aplicação — rodar de dentro de backend/
+# Executar o backend localmente — rodar de dentro de backend/
 cd backend && ./mvnw spring-boot:run
 
-# Build completo (usar este após mudanças em @Value ou configuração — não confiar apenas no devtools)
+# Build completo do backend (usar após mudanças em @Value ou configuração)
 cd backend && ./mvnw clean package
 
-# Rodar testes
+# Rodar todos os testes do backend (196 testes)
 cd backend && ./mvnw test
 
-# Rodar um único teste
+# Rodar uma classe de teste específica no backend
 cd backend && ./mvnw test -Dtest=NomeDaClasseTest
 ```
 
 ## Variáveis de ambiente (.env)
 
-A aplicação lê `.env` via `spring.config.import=optional:file:.env[.properties]`. Como os comandos do backend são executados dentro de `backend/`, o arquivo esperado é `backend/.env`. O padrão do projeto é: variável no `.env` → mapeada em `application.properties` → lida via `@Value`.
+Em desenvolvimento local, a aplicação lê `.env` via `spring.config.import=optional:file:.env[.properties]`. Como os comandos do backend são executados dentro de `backend/`, o arquivo esperado é `backend/.env` (copiado de `backend/.env.example`). Para produção na VPS, o modelo é `.env.production.example` na raiz.
+
+O padrão do projeto é: variável no `.env` → mapeada em `application.properties` → lida via `@Value("${propriedade.spring}")`.
 
 | Variável no .env | Propriedade Spring | Descrição |
 |------------------|--------------------|-----------|
+| `DB_HOST` | *(interpolada na URL JDBC)* | Host do MySQL (padrão: `localhost`; no Compose: `db`) |
+| `DB_PORT` | *(interpolada na URL JDBC)* | Porta do MySQL (padrão: `3307` no host; `3306` na rede Docker) |
+| `DB_NAME` | *(interpolada na URL JDBC)* | Nome do banco (padrão: `vollmed_api`) |
+| `DB_USER` | `spring.datasource.username` | Usuário do MySQL (padrão: `root`) |
+| `DB_PASSWORD` | `spring.datasource.password` | Senha do MySQL (padrão local: `root`) |
+| `BACKEND_PORT` / `FRONTEND_PORT` | *(usadas pelo `docker-compose.yml`)* | Portas publicadas no host local (`8080` e `3000`) |
 | `JWT_SECRET` | `api.security.token.secret` | Chave JWT (mín. 32 chars) — `openssl rand -base64 32` |
-| `TOKEN_EXPIRACAO_HORAS` | `api.security.token.expiracao-horas` | Expiração do JWT (padrão: 2h) |
-| `DB_PASSWORD` | `spring.datasource.password` | Senha do MySQL (padrão: `root`) |
+| `TOKEN_EXPIRACAO_HORAS` | `api.security.token.expiracao-horas` | Expiração do JWT (padrão: `2`) |
 | `ADMIN_LOGIN` | `admin.login` | Login do admin inicial (padrão: `admin@vollmed.com`) |
 | `ADMIN_PASSWORD` | `admin.password` | Senha do admin inicial — **obrigatório para criar o admin** |
 | `ANTHROPIC_API_KEY` | `anthropic.api.key` | Chave da Anthropic; app inicia sem ela, mas chamadas `/ia/*` falham em runtime |
+| `CEP_API_BASE_URL` | `cep.api.base-url` | URL base do serviço `Consultar-Cep` (padrão local: `http://localhost:8081`; VPS: `http://consultacep:8080`) |
+| `CEP_API_KEY` | `cep.api.key` | Chave enviada no header `X-API-Key` apenas nas chamadas backend-to-backend |
 
-> **Importante:** Nunca usar `@Value("${NOME_VARIAVEL_ENV}")` diretamente. Sempre mapear em `application.properties` primeiro e usar `@Value("${propriedade.spring}")`. Este é o padrão adotado no projeto.
+> **Importante:** Nunca usar `@Value("${NOME_VARIAVEL_ENV}")` diretamente no código Java. Sempre mapear em `application.properties` primeiro e usar `@Value("${propriedade.spring}")`.
 
 ## Arquitetura
 
-### Camadas
+### Camadas do Backend
 
-- **`controller/`** — endpoints REST; delegam para services ou domain services
-- **`domain/<entidade>/`** — entidade JPA, repository, DTOs e regras de negócio internas
-- **`service/`** — serviços de aplicação (`MedicoService`, `PacienteService`, `ConsultaService`, `UsuarioService`)
-- **`infra/security/`** — filtro JWT (`SecurityFillter`), rate limiting (`RateLimitFilter`), configuração Spring Security (`SecurityConfigurations`), criação do admin inicial (`AdminInitializer`)
+- **`controller/`** — 14 controllers REST (`AutenticacaoController`, `MedicoController`, `MedicoConvenioController`, `PacientesController`, `ConsultaController`, `DisponibilidadeMedicoController`, `ProntuarioController`, `PrescricaoController`, `AtestadoController`, `ConvenioController`, `ConvenioPacienteController`, `AuditoriaController`, `EspecialidadeController`, `IaController`, `EnderecoController`)
+- **`domain/<entidade>/`** — entidades JPA, repositories, enums, DTOs (records) e serviços de domínio (`AgendaDeConsultas`, `AutenticacaoService`)
+- **`service/`** — serviços de aplicação (`UsuarioService`, `MedicoService`, `PacienteService`, `ConsultaService`, `EspecialidadeService`, `ConvenioService`, `ConvenioPacienteService`, `ProntuarioService`, `PrescricaoService`, `AtestadoService`, `AuditoriaProntuarioService`, `IaService`, `ConsultaCepService`)
+- **`infra/security/`** — filtro JWT (`SecurityFillter`), rate limiting (`RateLimitFilter`), configuração Spring Security e CORS (`SecurityConfigurations`), geração/validação JWT (`TokenService`), criação idempotente do admin inicial (`AdminInitializer`)
+- **`infra/aop/`** — auditoria LGPD automática via AspectJ (`AuditoriaProntuarioAspect`) sobre `ProntuarioService`, `PrescricaoService` e `AtestadoService`
+- **`infra/cep/`** — cliente HTTP `CepClient` / `RestClientCepClient` (ACL para o serviço externo `Consultar-Cep`)
 - **`infra/exception/`** — handler global de erros (`TratadorDeErros`)
-- **`exception/`** — exceções de domínio (`ValidacaoException` → 400, `ConflitoException` → 409)
-- **`docs/PLANEJAMENTO.md`** — roadmap de funcionalidades planejadas
+- **`Exception/`** — exceções customizadas de domínio e integração (`ValidacaoException` → 400, `ConflitoException` → 409, `CepInvalidoException` → 400, `CepNaoEncontradoException` → 404, `RespostaInvalidaCepException` → 502, `ServicoCepIndisponivelException` → 503)
 
 ### Fluxo de autenticação
 
 1. `POST /auth/login` → `AutenticacaoController` → Spring Security autentica → `TokenService` gera JWT
-2. Cada requisição passa por `RateLimitFilter` (bloqueia abusos) → `SecurityFillter` (valida JWT, carrega `Usuario` no `SecurityContext`)
+2. Cada requisição passa por `RateLimitFilter` → `SecurityFillter` (valida JWT e injeta `Usuario` no `SecurityContext`)
 3. `RateLimitFilter` atua apenas em `/auth/*` — máx. 10 req/IP em 15 min → HTTP 429
 
 ### Registro de filtros customizados (Spring Security 6.5+)
@@ -74,49 +84,43 @@ public FilterRegistrationBean<SecurityFillter> securityFillterRegistration(Secur
 
 ### Perfis de usuário
 
-- `ROLE_ADMIN` — administração técnica e usuários via `POST /auth/cadastro`, `GET /auth/usuarios` e `GET /auth/medicos-disponiveis` (médicos ativos ainda sem usuário vinculado, para o formulário de cadastro); não acessa dados clínicos nem cadastros operacionais por padrão, inclusive `GET /medicos`
-- `ROLE_FUNCIONARIO` — operação da clínica, cadastros, agenda, convênios e leitura operacional necessária
-- `ROLE_MEDICO` — atendimento clínico; vê apenas dados assistenciais vinculados ao médico logado e acessa IA clínica
-- `ROLE_AUDITOR` / `ROLE_GESTOR` — leitura ampla, auditoria LGPD e relatórios sensíveis, sempre com rastreabilidade
+- `ROLE_ADMIN` — administração técnica e usuários via `POST /auth/cadastro`, `GET /auth/usuarios`, `GET /auth/medicos-disponiveis` e `GET /enderecos/cep/{cep}`; não acessa dados clínicos nem cadastros operacionais por padrão, inclusive `GET /medicos`
+- `ROLE_FUNCIONARIO` — operação da clínica, cadastros, agenda, convênios, consulta de CEP e leitura operacional necessária
+- `ROLE_MEDICO` — atendimento clínico; vê apenas dados assistenciais vinculados ao médico logado e acessa IA clínica (`/ia/*`)
+- `ROLE_AUDITOR` / `ROLE_GESTOR` — leitura ampla, inativação administrativa de prontuário e auditoria LGPD (`/auditoria/**`), sempre com rastreabilidade
 
 ### Admin inicial (AdminInitializer)
 
 Ao iniciar, `AdminInitializer` (implementa `ApplicationRunner`) verifica se existe algum `ROLE_ADMIN` no banco. Se não existir e `ADMIN_PASSWORD` estiver configurado, cria o admin automaticamente. O processo é idempotente.
-
-Logs para acompanhar:
-- `"AdminInitializer: verificando admin. Login configurado: X"` → método chamado, propriedade lida
-- `"admin já existe no banco"` → já há um ROLE_ADMIN, nenhuma ação
-- `"ADMIN_PASSWORD não configurado"` → variável de ambiente não lida
-- `"Admin inicial criado com login: X"` → sucesso
 
 ### Banco de dados
 
 - `ddl-auto=validate` — Hibernate valida o schema mas não o altera; toda mudança estrutural exige migration Flyway
 - Migrations em `backend/src/main/resources/db/migration/` com prefixo `V{n}__descricao.sql`
 - Última migration aplicada: `V25` — próxima será `V26`
-- Exclusão lógica via campo `ativo` em médicos, pacientes, consultas, prontuários, atestados, convênios e disponibilidades
+- Exclusão lógica via campo `ativo` em médicos, pacientes, consultas, prontuários, especialidades, convênios, vínculos de convênio e disponibilidades
 
 ### Regras de negócio de consultas (AgendaDeConsultas)
 
 - Clínica funciona Seg–Sáb, 07h–19h
-- Agendamento com mínimo 30 min de antecedência; cancelamento com mínimo 24h
-- Paciente não pode ter duas consultas no mesmo dia
-- Médico pode ser omitido — sistema escolhe aleatoriamente um disponível na data usando agenda de disponibilidade real
+- Antecedência mínima de agendamento conforme prioridade: `ROTINA` (30 min, padrão), `PRIORITARIO` (10 min), `URGENCIA` (sem restrição); cancelamento exige mínimo de 24h
+- Paciente não pode ter duas consultas normais no mesmo dia (retorno via `consultaOrigemId` até 30 dias ignora a cota diária, limitado a 1 retorno por consulta)
+- Médico pode ser omitido — sistema escolhe aleatoriamente um médico ativo com disponibilidade real cadastrada e livre no horário
+- Quando `convenioId` é informado, valida existência/atividade do convênio e aceite pelo médico
 
 ## Frontend
 
-Monorepo — frontend em `frontend/` no mesmo repositório.
+Monorepo — frontend SPA em `frontend/`.
 
 ### Stack
 
-- React 19 + TypeScript + Vite 7
-- TailwindCSS v4 (via `@tailwindcss/vite`, sem `tailwind.config.ts`)
-- **shadcn/ui** — 60+ componentes sobre Radix UI (`components/ui/`)
-- **wouter** — router leve (substitui react-router-dom)
-- Axios (client HTTP com interceptor JWT)
-- React Hook Form + Zod v4 (formulários e validação)
-- framer-motion (animações), recharts (gráficos), sonner (toasts)
-- Lucide React (ícones)
+- React 19 + TypeScript 5.6 + Vite 7
+- TailwindCSS v4 (via `@tailwindcss/vite`, tokens em `src/index.css`)
+- **shadcn/ui** — componentes sobre Radix UI (`components/ui/`)
+- **wouter** — roteamento client-side leve
+- Axios (client HTTP com interceptor JWT em `src/api/axios.ts` e base default `/api`)
+- React Hook Form + Zod v4, framer-motion, recharts, sonner, Lucide React
+- Vitest + Testing Library (29 testes automatizados)
 
 ### Comandos
 
@@ -126,95 +130,83 @@ cd frontend
 # Instalar dependências
 npm install
 
-# Dev server (http://localhost:5173)
+# Dev server (http://localhost:5173 — proxy /api -> http://localhost:8080)
 npm run dev
+
+# Executar testes automatizados (29 testes)
+npm test
+
+# Type check
+npm run check
 
 # Build de produção
 npm run build
 
-# Type check
-npm run check
+# Auditoria de vulnerabilidades
+npm audit
 ```
-
-### Autenticação
-
-- `AuthContext` + `useAuth` — token JWT no `localStorage`, decodificação do payload (login, role)
-- `PrivateRoute` (em `App.tsx`) — redireciona para `/login` via `<Redirect>` do wouter se não autenticado
-- `api/axios.ts` — injeta `Authorization: Bearer <token>` em toda requisição; redireciona para `/login` automaticamente no 401
-
-### Paleta de cores
-
-Warm beige definida em `src/index.css` via variáveis CSS (sistema TailwindCSS v4):
-
-| Token | Hex | Uso |
-|-------|-----|-----|
-| `--background` | `#F5F0EB` | Fundo geral |
-| `--card` / `--sidebar` | `#EDE8E3` | Cards e sidebar |
-| `--primary` | `#6B7F6A` | Sage green — botões, links ativos |
-| `--destructive` | `#C4714F` | Burnt orange — erros, cancelamentos |
-| `--foreground` | `#1C1917` | Texto principal |
-| `--muted-foreground` | `#78716C` | Texto secundário |
-
-Fonte: **Plus Jakarta Sans** (Google Fonts, carregada em `index.html`).
 
 ### Estrutura
 
-```
+```text
 frontend/src/
-├── api/               # axios.ts (instância + interceptors), auth.ts, módulos por domínio
-├── contexts/          # AuthContext.tsx, ThemeContext.tsx
-├── hooks/             # useAuth.ts, useMobile.tsx
-├── lib/               # utils.ts (cn, formatters, validators), rbac.ts
+├── api/               # axios.ts, auth.ts, cep.ts, medicos.ts, pacientes.ts, consultas.ts,
+│                      # prontuarios.ts, prescricoes.ts, atestados.ts, especialidades.ts,
+│                      # convenios.ts, medicoConvenios.ts, convenioPaciente.ts, disponibilidade.ts,
+│                      # auditoria.ts, ia.ts (+ testes unitários axios.test.ts, cep.test.ts)
+├── contexts/          # AuthContext.tsx (+ AuthContext.test.tsx), ThemeContext.tsx
+├── hooks/             # useAuth.ts, useMobile.tsx, useComposition.ts, usePersistFn.ts
+├── lib/               # authSession.ts, rbac.ts, utils.ts (e mockData.ts legado não importado)
 ├── components/
-│   ├── ui/            # shadcn/ui (60+ componentes Radix)
-│   ├── DashboardLayout.tsx  # sidebar responsiva com logout e highlight ativo
-│   ├── PageHeader.tsx
-│   ├── Badge.tsx, EmptyState.tsx, SearchInput.tsx, ErrorBoundary.tsx
-├── pages/
-│   ├── Login.tsx      # tela de login (mantida do frontend anterior)
-│   ├── Dashboard.tsx
-│   ├── Doctors.tsx, Patients.tsx, Appointments.tsx
-│   ├── MedicalRecords.tsx, Prescriptions.tsx, Certificates.tsx
-│   ├── Specialties.tsx, Insurance.tsx
-│   ├── Users.tsx, Availability.tsx, Audit.tsx, ClinicalAI.tsx
-│   └── NotFound.tsx
-├── types/             # auth.ts (Role, User, JwtPayload), api.ts (todos os DTOs de domínio)
-└── App.tsx            # router wouter + AuthProvider + ThemeProvider
+│   ├── dashboard/     # FuncionarioDashboard.tsx (+ test), MedicoDashboard.tsx
+│   ├── ui/            # shadcn/ui + Pagination, Spinner
+│   └── DashboardLayout.tsx, PageHeader.tsx, Badge.tsx, EmptyState.tsx, SearchInput.tsx, ErrorBoundary.tsx
+├── pages/             # Login, Dashboard, Users, Doctors, Patients, Appointments,
+│                      # MedicalRecords, Prescriptions, Certificates, Specialties,
+│                      # Insurance, Availability, Audit, ClinicalAI, NotFound
+│                      # (+ testes Login.test.tsx, Users.test.tsx, Doctors.cep.test.tsx, Patients.cep.test.tsx)
+├── types/             # auth.ts, api.ts, auditoria.ts
+└── App.tsx            # router wouter + guardas por perfil (AdminRoute, NonAdminRoute, AuditorRoute, MedicoRoute)
 ```
 
 ### Rotas
 
-| Path | Página | Auth |
-|------|--------|------|
-| `/login` | Login | pública |
-| `/` | Dashboard | privada |
-| `/doctors` | Médicos | privada |
-| `/patients` | Pacientes | privada |
-| `/appointments` | Consultas | privada |
-| `/medical-records` | Prontuários | privada |
-| `/prescriptions` | Prescrições | privada |
-| `/certificates` | Atestados | privada |
-| `/specialties` | Especialidades | privada |
-| `/insurance` | Convênios | privada |
-| `/users` | Usuários | `AdminRoute` (frontend) + backend restringem a `ROLE_ADMIN` |
-| `/availability` | Disponibilidade médica | privada, não ADMIN |
-| `/audit` | Auditoria LGPD | `ROLE_AUDITOR`/`ROLE_GESTOR` |
-| `/clinical-ai` | IA Clínica | `ROLE_MEDICO` |
+| Path | Página | Guarda no Frontend |
+|------|--------|--------------------|
+| `/login` | `Login` | Pública |
+| `/` | `Dashboard` | `NonAdminRoute` (`ROLE_ADMIN` → `/users`; `AUDITOR`/`GESTOR` → `/audit`) |
+| `/users` | `Users` | `AdminRoute` (apenas `ROLE_ADMIN`) |
+| `/doctors` | `Doctors` | `NonAdminRoute` |
+| `/patients` | `Patients` | `NonAdminRoute` |
+| `/appointments` | `Appointments` | `NonAdminRoute` |
+| `/medical-records` | `MedicalRecords` | `NonAdminRoute` |
+| `/prescriptions` | `Prescriptions` | `NonAdminRoute` |
+| `/certificates` | `Certificates` | `NonAdminRoute` |
+| `/specialties` | `Specialties` | `NonAdminRoute` |
+| `/insurance` | `Insurance` | `NonAdminRoute` |
+| `/availability` | `Availability` | `NonAdminRoute` |
+| `/audit` | `Audit` | `AuditorRoute` (`ROLE_AUDITOR` / `ROLE_GESTOR`) |
+| `/clinical-ai` | `ClinicalAI` | `MedicoRoute` (`ROLE_MEDICO`) |
+| `/404` / fallback | `NotFound` | Pública |
 
 ### Estado atual das páginas
 
-Todas as páginas estão conectadas à API real. `mockData.ts` removido. Cada domínio tem seu módulo em `api/` e os DTOs correspondentes em `types/api.ts`. RBAC aplicado nos botões de ação (criar/editar/excluir restritos por role).
+Todas as páginas das rotas ativas estão conectadas à API real. Observação: `src/lib/mockData.ts`, `src/pages/Home.tsx`, `src/components/ManusDialog.tsx` e `src/components/Map.tsx` permanecem no repositório como artefatos legados sem importação nas rotas ativas.
 
-### CORS
+## Deploy, Infraestrutura VPS e CORS
 
-Backend libera `localhost:3000`, `localhost:5173`, `localhost:5174` e domínios Vercel configurados em `SecurityConfigurations`. Para produção própria, atualizar a lista/padrão de CORS ali.
+- **Frontend (Produção):** publicado na Vercel (`https://vollmed.usenexora.online`), com `VITE_API_BASE_URL=https://api-vollmed.usenexora.online/api`.
+- **Backend + CEP + MySQL (Produção na VPS):** orquestrados via `docker-compose.prod.yml` e `deploy/Caddyfile` (Caddy termina HTTPS e faz `handle_path /api/*` para `backend:8080`). Swagger fica desabilitado em produção (`SPRINGDOC_SWAGGER_UI_ENABLED=false`). Ver detalhes em `docs/DEPLOY_VPS.md`.
+- **CI/CD:** `.github/workflows/deploy.yml` roda testes backend (`./mvnw test`), testes frontend (`npm test`), typecheck (`npm run check`) e build (`npm run build`), realizando deploy via SSH na VPS em pushes na branch `main`.
+- **CORS:** `SecurityConfigurations` libera `localhost` (`3000`, `5173`, `5174`), `https://vollmed.usenexora.online` e domínios Vercel do projeto (`https://voll-*.vercel.app`).
 
-## Planejamento de evolução
+## Referências Documentais
 
-Backend completo até V25. Frontend conectado à API real, incluindo IA clínica, emissão de atestados para `ROLE_MEDICO` e dashboard operacional com métricas reais. Próximo passo possível: otimização de bundle.
-
-### Fase 1 do plano de correções (concluída)
-
-Corrigido o bloqueio de cadastro de usuário médico: `ROLE_ADMIN` recebia `403` de `GET /medicos` (endpoint operacional) e o frontend descartava o erro silenciosamente, deixando o seletor de médicos sempre vazio. Solução: endpoint dedicado `GET /auth/medicos-disponiveis` (só ADMIN, só médicos ativos sem usuário), `UsuarioService` com `@Transactional` e bloqueio pessimista (`findByIdComBloqueio`) no vínculo médico↔usuário, e estados explícitos de carregando/vazio/erro/retry em `Users.tsx`. Ver `docs/DECISOES_TECNICAS.md` para detalhes e pendências.
-
-Vulnerabilidades npm do frontend: resolvidas com segurança via `npm audit fix` (sem `--force`), resultando em 0 vulnerabilidades (audit zerado, testes e build validados).
+- `docs/ENDPOINTS.md` — referência completa de rotas, payloads e códigos HTTP
+- `docs/REGRAS_DE_NEGOCIO.md` — regras clínicas/operacionais e matriz RBAC
+- `docs/DECISOES_TECNICAS.md` — decisões arquiteturais, gotchas e pendências técnicas conhecidas
+- `docs/TESTES.md` — estratégia e cobertura das suítes backend/frontend
+- `docs/DEPLOY_VPS.md` — guia operacional de deploy em VPS com Caddy e GitHub Actions
+- `docs/PLANEJAMENTO.md` e `docs/BACKLOG.md` — fases concluídas e pendências priorizadas
+- `docs/ANALISE_PROJETO.md` e `docs/ANALISE_EVOLUCAO_CLINICA.md` — diagnóstico técnico e roadmap de evolução clínica
+- `frontend/docs/ARCHITECTURE.md`, `frontend/docs/API_CONTRATOS.md` e `frontend/docs/DESIGN_SYSTEM.md` — documentação dedicada do frontend

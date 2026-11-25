@@ -58,7 +58,7 @@ Configure estes segredos no ambiente GitHub `production` de **cada repositório*
 
 No projeto Voll.med da Vercel, defina `VITE_API_BASE_URL=https://api-vollmed.usenexora.online/api` no ambiente Production. O painel Consultar-Cep usa `https://api-cep.usenexora.online/api/v1` no build de produção.
 
-Push na branch `main` do Consultar-Cep atualiza `/opt/vollmed/cep` e reconstrói somente `consultacep`. Push na branch `main` do Voll.med atualiza `/opt/vollmed/app` e reconcilia toda a stack. Nenhum segredo deve ser colocado no código ou enviado pelo chat.
+Push na branch `main` do Consultar-Cep atualiza `/opt/vollmed/cep` e reconstrói somente `consultacep`. Push na branch `main` do Voll.med executa primeiro o job `test` em `.github/workflows/deploy.yml` (`./mvnw --batch-mode test`, `npm ci`, `npm test`, `npm run check` e `npm run build`) e, somente se todas as verificações passarem, atualiza `/opt/vollmed/app` via SSH e reconcilia toda a stack. Nenhum segredo deve ser colocado no código ou enviado pelo chat.
 
 ## Dados do Railway
 

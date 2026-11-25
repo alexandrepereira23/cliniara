@@ -54,27 +54,33 @@ O campo `dia_semana` usa `VARCHAR(20)` no banco armazenando o nome do enum Java 
 
 ## API e Controllers
 
-### `@ParameterObject` em todos os endpoints com `Pageable`
+### `@ParameterObject` nos endpoints com `Pageable`
 
-Todos os parâmetros `Pageable` nos controllers usam `@ParameterObject` do SpringDoc.
+Os parâmetros `Pageable` nos controllers operacionais usam `@ParameterObject` do SpringDoc.
 
 **Por quê:** Sem a anotação, o Swagger UI renderiza o `sort` como `array[string]` com valor padrão `["string"]`, que é enviado literalmente ao JPA e causa `InvalidDataAccessApiUsageException`. Com `@ParameterObject`, os parâmetros são expandidos individualmente (`page`, `size`, `sort`).
 
+> **Pendência técnica conhecida:** `AutenticacaoController` (`GET /auth/usuarios` e `GET /auth/medicos-disponiveis`) ainda não possui `@ParameterObject` nos parâmetros `Pageable` (mapeado em `docs/BACKLOG.md`).
+
 ---
 
-### `ResponseStatusException` no `ProntuarioService`
+### `ResponseStatusException` nos Services (`ProntuarioService`, `IaService`, `ConvenioPacienteService`)
 
-O service de prontuários usa `ResponseStatusException` em vez de `ValidacaoException` customizada.
+O service de prontuários (e outros fluxos com múltiplos status HTTP) usa `ResponseStatusException` em vez de `ValidacaoException` customizada.
 
 **Por quê:** Os erros de prontuário têm códigos HTTP distintos (403, 404, 409, 422) que não se encaixam no padrão 400 da `ValidacaoException`. `ResponseStatusException` permite especificar o status exato sem criar múltiplas classes de exceção.
 
+> **Atenção / Bug conhecido a corrigir:** `TratadorDeErros` declara `@ExceptionHandler(Exception.class)` sem um handler específico para `ErrorResponseException` / `ResponseStatusException`. Em execução real, exceções `ResponseStatusException` lançadas pelos services acabam capturadas pelo handler genérico de erro 500. A adição de um handler dedicado em `TratadorDeErros` + testes `@WebMvcTest` correspondentes está priorizada em `docs/BACKLOG.md`.
+
 ---
 
-### Controller sem Service para `DisponibilidadeMedico`
+### Controllers sem camada de Service dedicada (`DisponibilidadeMedicoController` e `MedicoConvenioController`)
 
-O `DisponibilidadeMedicoController` acessa os repositories diretamente, sem uma camada de service separada.
+`DisponibilidadeMedicoController` e `MedicoConvenioController` acessam os repositories diretamente, sem uma classe `@Service` intermediária.
 
-**Por quê:** A lógica é simples (buscar médico → criar/inativar disponibilidade) e não há regras de negócio complexas que justifiquem uma classe extra. Seguindo o princípio de não criar abstrações desnecessárias.
+**Por quê:** A lógica inicial era enxuta (buscar médico → criar/listar/inativar disponibilidade ou vínculo de convênio) e buscou-se evitar abstrações extras.
+
+> **Atenção / Bug conhecido a corrigir:** Os métodos de remoção lógica (`DisponibilidadeMedicoController.remover` e `MedicoConvenioController.desvincular`) alteram o estado da entidade em memória (`inativar()` / `desvincular()`) sem `@Transactional` e sem chamada explícita a `repository.save(...)`, fazendo com que o `UPDATE` não seja persistido no MySQL. Correção registrada em `docs/BACKLOG.md`.
 
 ---
 
@@ -247,23 +253,28 @@ O ambiente local pode apontar para uma instancia local do `Consultar-Cep` ou par
 
 ---
 
-## Deploy
+## Deploy e Infraestrutura de Produção
 
-### Railway para Backend
+### Migração do Backend para VPS com Docker Compose e Caddy
 
-O backend Spring Boot pode ser publicado no Railway com as mesmas variaveis de ambiente usadas localmente, ajustadas para producao (`DB_*`, `JWT_SECRET`, `ADMIN_*`, `ANTHROPIC_API_KEY`, `CEP_API_BASE_URL`, `CEP_API_KEY`).
+Originalmente publicado no Railway durante o deploy inicial, o backend do Voll.med e a API `Consultar-Cep` migraram para uma **VPS Linux** orquestrada por `docker-compose.prod.yml` e `deploy/Caddyfile` (detalhes operacionais em `docs/DEPLOY_VPS.md`).
 
-**Decisao:** manter segredos apenas no ambiente do provedor. O repositorio deve conter somente exemplos sem segredo real, como `backend/.env.example`.
+**Decisões adotadas na VPS:**
+1. **Terminação HTTPS via Caddy:** Apenas as portas `80` e `443` são expostas no host. O Caddy gerencia certificados TLS automaticamente para `api-vollmed.usenexora.online` e `api-cep.usenexora.online`.
+2. **Roteamento `/api/*` sem expor MySQL ou containers internos:** Para `api-vollmed.usenexora.online`, o Caddy usa `handle_path /api/*` encaminhando para `backend:8080` (removendo o prefixo `/api`) e configurando `SERVER_FORWARD_HEADERS_STRATEGY=framework` no Spring Boot.
+3. **Comunicação interna entre APIs:** Na VPS, `CEP_API_BASE_URL` aponta para `http://consultacep:8080` pela rede interna do Docker Compose, sem tráfego externo desnecessário.
+4. **Hardening de produção:** `SPRINGDOC_SWAGGER_UI_ENABLED=false` e `SPRINGDOC_API_DOCS_ENABLED=false` desabilitam o Swagger em produção. Segredos reais residem apenas em `/opt/vollmed/app/.env` (baseado em `.env.production.example`), nunca no repositório.
+5. **CI/CD com GitHub Actions (`.github/workflows/deploy.yml`):** Qualquer PR ou push em `main` executa testes do backend (`./mvnw --batch-mode test`), testes do frontend (`npm test`), verificação de tipos (`npm run check`) e build (`npm run build`). Somente após aprovação da suíte em `main`, o job `deploy` atualiza a stack na VPS via SSH.
 
 ### Vercel para Frontend
 
-O frontend React/Vite e publicado no Vercel. A seguranca real permanece no backend; as guardas de rota do frontend sao apenas UX.
+O frontend React/Vite permanece publicado na Vercel (`https://vollmed.usenexora.online`), consumindo a API em produção via `VITE_API_BASE_URL=https://api-vollmed.usenexora.online/api` e `frontend/vercel.json` para rewrite de rotas SPA. A segurança real permanece no backend; as guardas de rota do frontend são apenas UX.
 
-**Decisao:** chamadas sensiveis continuam passando pelo backend Voll.med. O frontend nao recebe `CEP_API_KEY`, `ANTHROPIC_API_KEY` nem qualquer segredo backend-to-backend.
+**Decisão:** chamadas sensíveis continuam passando pelo backend Voll.med. O frontend não recebe `CEP_API_KEY`, `ANTHROPIC_API_KEY` nem qualquer segredo backend-to-backend.
 
 ### CORS
 
-`SecurityConfigurations` permite origens locais (`localhost`/`127.0.0.1`) e dominios Vercel do projeto, incluindo padrao `https://voll-*.vercel.app`.
+`SecurityConfigurations` permite origens locais (`localhost`/`127.0.0.1` nas portas `3000`, `5173` e `5174`), o domínio customizado de produção `https://vollmed.usenexora.online` e domínios Vercel do projeto (incluindo padrão `https://voll-*.vercel.app`).
 
 ---
 

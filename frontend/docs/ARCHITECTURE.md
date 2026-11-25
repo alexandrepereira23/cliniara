@@ -1,6 +1,6 @@
 # Arquitetura Frontend — Voll.med
 
-Frontend SPA em React 19 + TypeScript + Vite 7. A comunicação com o backend Spring Boot é feita via Axios com interceptor JWT.
+Frontend SPA em React 19 + TypeScript 5.6 + Vite 7. A comunicação com o backend Spring Boot é feita via Axios com interceptor JWT e proxy `/api`.
 
 ## Stack
 
@@ -8,117 +8,119 @@ Frontend SPA em React 19 + TypeScript + Vite 7. A comunicação com o backend Sp
 - TypeScript 5.6
 - Vite 7
 - TailwindCSS v4 via `@tailwindcss/vite`
-- shadcn/ui sobre Radix UI
+- shadcn/ui sobre Radix UI (`src/components/ui/`)
 - wouter para roteamento client-side
-- Axios para HTTP
-- React Hook Form + Zod para formulários e validação
-- Sonner para toasts
-- Recharts para gráficos
+- Axios para cliente HTTP
+- React Hook Form + Zod v4 para formulários e validação
+- Sonner para notificações (toasts)
+- Recharts para gráficos e Framer Motion para transições pontuais
 - Lucide React para ícones
+- Vitest + Testing Library para testes automatizados (`29` testes passando)
 
 ## Estrutura Real
 
 ```text
 frontend/src/
-├── api/               # Axios e módulos por domínio
-├── components/        # Layout, componentes compartilhados e shadcn/ui
+├── api/               # Instância Axios, interceptors e clientes HTTP por domínio
+├── components/        # Layout, dashboards por perfil, componentes compartilhados e shadcn/ui
+│   ├── dashboard/     # FuncionarioDashboard.tsx, MedicoDashboard.tsx
+│   └── ui/            # Primitivos Radix/shadcn + Pagination e Spinner
 ├── contexts/          # AuthContext, ThemeContext
-├── hooks/             # useAuth, useMobile
-├── lib/               # utils, RBAC e helpers
-├── pages/             # Páginas de rota
-├── types/             # Tipos de auth, API e auditoria
-├── App.tsx            # Router wouter + providers
+├── hooks/             # useAuth, useMobile, useComposition, usePersistFn
+├── lib/               # authSession, rbac, utils (e mockData legado não utilizado)
+├── pages/             # Páginas de rota e testes de integração de tela
+├── test/              # setup.ts e utilitários de token para Vitest
+├── types/             # Tipos de auth, contratos de API e auditoria
+├── App.tsx            # Router wouter + guardas por perfil + providers
 ├── const.ts
-├── index.css          # Tailwind v4 + tokens CSS
+├── index.css          # Tailwind v4 (@theme inline) + variáveis CSS (:root e .dark)
 └── main.tsx
 ```
+
+## Proxy `/api` e Ambientes de Execução
+
+A instância Axios (`src/api/axios.ts`) define `baseURL: import.meta.env.VITE_API_BASE_URL ?? '/api'`:
+
+- **Desenvolvimento local (`npm run dev`):** o Vite (`vite.config.ts`, porta `5173`) faz proxy de `/api/*` para `http://localhost:8080`, removendo o prefixo `/api`.
+- **Docker Compose local (`docker-compose.yml`):** o container `frontend` usa Nginx (`frontend/nginx.conf`) servindo o bundle estático e redirecionando `location /api/` para `http://backend:8080/`.
+- **Produção (Vercel + VPS):** publicado na Vercel (`frontend/vercel.json` faz rewrite SPA para `/index.html`) com `VITE_API_BASE_URL=https://api-vollmed.usenexora.online/api`, onde o Caddy na VPS faz `handle_path /api/*` para `backend:8080`.
 
 ## Módulos de API
 
 Arquivos atuais em `frontend/src/api/`:
 
-- `axios.ts` — instância Axios com interceptors de JWT e tratamento de 401.
-- `auth.ts` — login, usuários e médicos disponíveis para vínculo (`GET /auth/medicos-disponiveis`, só `ROLE_ADMIN`).
-- `medicos.ts` — médicos.
-- `pacientes.ts` — pacientes.
-- `consultas.ts` — consultas.
-- `prontuarios.ts` — prontuários.
-- `prescricoes.ts` — prescrições.
-- `atestados.ts` — atestados.
-- `especialidades.ts` — especialidades.
-- `convenios.ts` — convênios.
-- `disponibilidade.ts` — disponibilidade de médicos.
-- `medicoConvenios.ts` — convênios aceitos por médicos.
-- `convenioPaciente.ts` — convênios vinculados a pacientes.
-- `auditoria.ts` — auditoria LGPD.
-- `ia.ts` — IA clínica para pré-diagnóstico, laudo e resumo histórico, consumida por `/clinical-ai`.
+- `axios.ts` — instância Axios com injeção de `Authorization: Bearer <token>` (omitido em `POST /auth/login`) e limpeza automática de sessão em HTTP `401`.
+- `auth.ts` — login, cadastro/listagem de usuários e médicos disponíveis para vínculo (`GET /auth/medicos-disponiveis`, restrito a `ROLE_ADMIN`).
+- `cep.ts` — consulta de endereço por CEP via gateway seguro do backend (`GET /enderecos/cep/{cep}`), consumida em `Doctors.tsx` e `Patients.tsx`.
+- `medicos.ts` — CRUD e listagem paginada de médicos.
+- `pacientes.ts` — CRUD e listagem paginada de pacientes.
+- `consultas.ts` — agendamento, listagem paginada e cancelamento de consultas.
+- `prontuarios.ts` — listagem geral/por paciente, detalhamento e criação de prontuários.
+- `prescricoes.ts` — criação, detalhamento e listagem de prescrições por prontuário.
+- `atestados.ts` — emissão, detalhamento e histórico de atestados por paciente.
+- `especialidades.ts` — CRUD e listagem de especialidades.
+- `convenios.ts` — CRUD e listagem de convênios.
+- `disponibilidade.ts` — cadastro, listagem e inativação de horários de médicos.
+- `medicoConvenios.ts` — vínculo, listagem e desvínculo de convênios aceitos por médicos.
+- `convenioPaciente.ts` — associação, listagem paginada e remoção de convênios de pacientes.
+- `auditoria.ts` — consulta paginada de logs de auditoria LGPD por prontuário.
+- `ia.ts` — pré-diagnóstico, geração de laudo e resumo histórico (`ROLE_MEDICO`).
 
-## Autenticação
+## Autenticação e Sessão
 
-- `AuthContext` mantém token JWT em `localStorage`.
-- `useAuth` expõe usuário autenticado, role, login e logout.
-- `api/axios.ts` injeta `Authorization: Bearer <token>` em cada requisição.
-- Resposta 401 redireciona para `/login`.
+- `lib/authSession.ts` e `AuthContext` gerenciam o token JWT em `localStorage`, validando expiração (`exp`) e extraindo `sub` (login) e `role`.
+- `useAuth` expõe `user`, `isAuthenticated`, `login` e `logout`.
+- Resposta `401` em qualquer rota autenticada (exceto `POST /auth/login`) limpa a sessão armazenada, notifica ouvintes e redireciona para `/login`.
 
-## Rotas
+## Rotas e Guardas de Navegação
 
-Rotas atuais em `App.tsx`:
+Rotas atuais em `src/App.tsx`:
 
 | Path | Página | Guarda |
 |------|--------|--------|
 | `/login` | `Login` | Pública |
-| `/` | `Dashboard` | Privada, exceto ADMIN/AUDITOR/GESTOR redirecionados |
-| `/users` | `Users` | `AdminRoute` — apenas `ROLE_ADMIN` (redireciona para `/` demais perfis) |
-| `/doctors` | `Doctors` | Privada, não ADMIN |
-| `/patients` | `Patients` | Privada, não ADMIN |
-| `/appointments` | `Appointments` | Privada, não ADMIN |
-| `/medical-records` | `MedicalRecords` | Privada, não ADMIN |
-| `/prescriptions` | `Prescriptions` | Privada, não ADMIN |
-| `/certificates` | `Certificates` | Privada, não ADMIN |
-| `/specialties` | `Specialties` | Privada, não ADMIN |
-| `/insurance` | `Insurance` | Privada, não ADMIN |
-| `/availability` | `Availability` | Privada, não ADMIN |
-| `/audit` | `Audit` | Apenas `ROLE_AUDITOR`/`ROLE_GESTOR` |
-| `/clinical-ai` | `ClinicalAI` | Apenas `ROLE_MEDICO` |
-| `/404` | `NotFound` | Pública |
+| `/` | `Dashboard` | `NonAdminRoute` (`ROLE_ADMIN` → `/users`; `ROLE_AUDITOR`/`ROLE_GESTOR` → `/audit`) |
+| `/users` | `Users` | `AdminRoute` — apenas `ROLE_ADMIN` (demais perfis redirecionam para `/`) |
+| `/doctors` | `Doctors` | `NonAdminRoute` |
+| `/patients` | `Patients` | `NonAdminRoute` |
+| `/appointments` | `Appointments` | `NonAdminRoute` |
+| `/medical-records` | `MedicalRecords` | `NonAdminRoute` |
+| `/prescriptions` | `Prescriptions` | `NonAdminRoute` |
+| `/certificates` | `Certificates` | `NonAdminRoute` |
+| `/specialties` | `Specialties` | `NonAdminRoute` |
+| `/insurance` | `Insurance` | `NonAdminRoute` |
+| `/availability` | `Availability` | `NonAdminRoute` |
+| `/audit` | `Audit` | `AuditorRoute` — apenas `ROLE_AUDITOR` / `ROLE_GESTOR` |
+| `/clinical-ai` | `ClinicalAI` | `MedicoRoute` — apenas `ROLE_MEDICO` |
+| `/404` / fallback | `NotFound` | Pública |
 
-A segurança real é aplicada pelo backend. As guardas do frontend servem para UX e navegação.
+A segurança efetiva é aplicada pelo backend (`@PreAuthorize` + filtros de ownership nos services). As guardas do frontend e `src/lib/rbac.ts` (`canWrite`, etc.) atuam apenas para UX e exibição condicional de botões.
 
-## RBAC no Frontend
+## RBAC na Sidebar (`DashboardLayout.tsx`)
 
-- `ROLE_ADMIN` é direcionado para `/users`.
-- `ROLE_AUDITOR` e `ROLE_GESTOR` são direcionados para `/audit`.
-- `ROLE_MEDICO` vê IA clínica e não vê navegação para usuários, especialidades, convênios e auditoria.
-- Demais regras finas ficam nos botões e nas respostas 403 do backend.
+- `ROLE_ADMIN`: vê apenas `/users`.
+- `ROLE_AUDITOR` e `ROLE_GESTOR`: veem apenas `/audit` na navegação atual.
+- `ROLE_MEDICO`: vê módulos clínicos/agenda (incluindo `/clinical-ai`), ocultando `/users`, `/specialties`, `/insurance` e `/audit`.
+- `ROLE_FUNCIONARIO`: vê módulos operacionais e leitura clínica operacional, ocultando `/users`, `/audit` e `/clinical-ai`.
 
-## Estado Atual das Páginas
+## Estado Atual das Páginas e Artefatos Legados
 
-Páginas conectadas à API real:
+Todas as páginas listadas no roteador consomem exclusivamente a API real:
 
-- Dashboard, com métricas reais via `totalElements` das APIs e agenda do dia derivada das consultas carregadas.
-- Doctors
-- Patients
-- Appointments
-- MedicalRecords
-- Prescriptions
-- Certificates, com consulta por paciente e emissão por prontuário para `ROLE_MEDICO`.
-- Specialties
-- Insurance
-- Users
-- Availability
-- Audit
-- ClinicalAI, com seleção de consulta, prontuário e paciente a partir das APIs existentes.
+- `Dashboard` (`FuncionarioDashboard` e `MedicoDashboard`), `Users`, `Doctors`, `Patients`, `Appointments`, `MedicalRecords`, `Prescriptions`, `Certificates`, `Specialties`, `Insurance`, `Availability`, `Audit`, `ClinicalAI`.
+- **Artefatos legados sem uso nas rotas ativas:** `src/lib/mockData.ts`, `src/pages/Home.tsx`, `src/components/ManusDialog.tsx` e `src/components/Map.tsx` permanecem no repositório sem importações pelas telas reais (remoção prevista em `docs/BACKLOG.md`).
 
-Validação local: `npm run check` e `npm run build` passam após instalar dependências com `npm ci`.
+## Testes Automatizados
 
-## Tailwind v4
+Configurados via `vitest.config.ts` (`jsdom` + `@testing-library/react`), somando **29 testes** em 8 arquivos:
 
-O projeto usa TailwindCSS v4 via plugin do Vite. Não há `tailwind.config.ts` como fonte principal de tokens; as variáveis de tema ficam em `src/index.css`.
+- `src/api/axios.test.ts` (5), `src/api/cep.test.ts` (2), `src/contexts/AuthContext.test.tsx` (3), `src/components/dashboard/FuncionarioDashboard.test.tsx` (6), `src/pages/Users.test.tsx` (6), `src/pages/Doctors.cep.test.tsx` (3), `src/pages/Patients.cep.test.tsx` (2), `src/pages/Login.test.tsx` (2).
+- Validação completa de CI: `npm test`, `npm run check` (`tsc --noEmit`), `npm run build` (`tsc -b && vite build`) e `npm audit`.
 
 ## Convenções
 
-- Componentes e páginas em PascalCase.
-- Arquivos de API em camelCase.
-- Imports absolutos via `@/`.
-- Tipos compartilhados em `src/types/`.
-- Evitar `any` em contratos de API.
+- Componentes e páginas em `PascalCase`.
+- Clientes de API e utilitários em `camelCase`.
+- Imports absolutos via alias `@/`.
+- Tipos compartilhados centralizados em `src/types/` (`api.ts`, `auth.ts`, `auditoria.ts`).
+- Tokens visuais definidos em `src/index.css` via TailwindCSS v4 (`@theme inline`), sem `tailwind.config.ts`.
