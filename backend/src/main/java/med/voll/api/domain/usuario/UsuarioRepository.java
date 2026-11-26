@@ -1,12 +1,16 @@
 package med.voll.api.domain.usuario;
 
-
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.security.core.userdetails.UserDetails;
 
-public interface UsuarioRepository extends JpaRepository<Usuario,Long> {
+public interface UsuarioRepository extends JpaRepository<Usuario, Long> {
 
-    UserDetails findByLogin(String login);
+    @Query("SELECT u FROM Usuario u LEFT JOIN FETCH u.medico WHERE u.login = :login")
+    UserDetails findByLogin(@Param("login") String login);
+
     boolean existsByLogin(String login);
+
     boolean existsByRole(Perfil role);
 }

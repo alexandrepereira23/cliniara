@@ -2,6 +2,9 @@ package med.voll.api.infra.security;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletResponse;
+import med.voll.api.domain.medico.Medico;
+import med.voll.api.domain.usuario.Perfil;
+import med.voll.api.domain.usuario.Usuario;
 import med.voll.api.domain.usuario.UsuarioRepository;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,6 +18,8 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -85,6 +90,28 @@ class SecurityFillterTest {
         verify(filterChain, never()).doFilter(any(), any());
         assertEquals(HttpServletResponse.SC_UNAUTHORIZED, response.getStatus());
         assertEquals("{\"erro\":\"Token inválido ou expirado\"}", response.getContentAsString());
+    }
+
+    @Test
+    @DisplayName("Token válido de médico inativo deve retornar 401 e bloquear cadeia")
+    void tokenDeMedicoInativoDeveRetornar401() throws Exception {
+        var medicoInativo = mock(Medico.class);
+        when(medicoInativo.isAtivo()).thenReturn(false);
+        var usuarioMedico = new Usuario(3L, "medico@test.com", "senha", Perfil.ROLE_MEDICO, medicoInativo);
+
+        var request = request("GET", "/consultas");
+        request.addHeader("Authorization", "Bearer token-medico-inativo");
+        var response = new MockHttpServletResponse();
+
+        when(tokenService.getSubject("token-medico-inativo")).thenReturn("medico@test.com");
+        when(usuarioRepository.findByLogin("medico@test.com")).thenReturn(usuarioMedico);
+
+        securityFillter.doFilter(request, response, filterChain);
+
+        verify(filterChain, never()).doFilter(any(), any());
+        assertEquals(HttpServletResponse.SC_UNAUTHORIZED, response.getStatus());
+        assertEquals("{\"erro\":\"Conta de usuário inativa\"}", response.getContentAsString());
+        assertNull(SecurityContextHolder.getContext().getAuthentication());
     }
 
     private MockHttpServletRequest request(String method, String path) {

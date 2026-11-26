@@ -50,14 +50,14 @@ V1–V25 applied (next: V26)
 
 ## Tests
 
-206 tests passing no backend. Run from `backend/`: `./mvnw test`
-29 tests passing no frontend. Run from `frontend/`: `npm test`
+231 tests passing no backend. Run from `backend/`: `./mvnw test`
+30 tests passing no frontend. Run from `frontend/`: `npm test`
 7 E2E tests (Playwright, `frontend/e2e/`): `npm run test:e2e` from `frontend/`.
 CI workflow (`.github/workflows/deploy.yml`) runs backend tests, frontend tests, `npm run check`, `npm run build` (job `test`) and the E2E suite against MySQL 8.0 (job `e2e`) on every push/PR to `main`; deploy requires both.
 
-- Unit/context/security/client: `ApiApplicationTests` (1), `ExclusaoLogicaPersistenciaIntegrationTest` (2), `AgendaDeConsultasTest` (17), `ProntuarioServiceTest` (7), `EspecialidadeServiceTest` (8), `UsuarioServiceTest` (11), `IaServiceTest` (6), `AuditoriaProntuarioAspectTest` (2), `SecurityFillterTest` (3), `ConsultaCepServiceTest` (10), `RestClientCepClientTest` (7)
-- Controller (`@WebMvcTest`): `ConsultaControllerTest` (7), `MedicoControllerTest` (8), `PacientesControllerTest` (10), `ProntuarioControllerTest` (21), `PrescricaoControllerTest` (10), `AtestadoControllerTest` (10), `EspecialidadeControllerTest` (10), `AutenticacaoControllerTest` (16), `ConvenioControllerTest` (10), `ConvenioPacienteControllerTest` (6), `MedicoConvenioControllerTest` (6), `DisponibilidadeMedicoControllerTest` (6), `AuditoriaControllerTest` (4), `EnderecoControllerTest` (8)
-- Frontend (Vitest, `frontend/`: `npm test`): 29 testes cobrindo `Users.test.tsx` (6), `FuncionarioDashboard.test.tsx` (6), `axios.test.ts` (5), `Doctors.cep.test.tsx` (3), `AuthContext.test.tsx` (3), `Patients.cep.test.tsx` (2), `Login.test.tsx` (2), `cep.test.ts` (2)
+- Unit/context/security/client: `ApiApplicationTests` (1), `ExclusaoLogicaPersistenciaIntegrationTest` (4), `AgendaDeConsultasTest` (27), `ProntuarioServiceTest` (7), `EspecialidadeServiceTest` (8), `UsuarioServiceTest` (11), `IaServiceTest` (6), `AuditoriaProntuarioAspectTest` (2), `SecurityFillterTest` (4), `ConsultaCepServiceTest` (10), `RestClientCepClientTest` (7)
+- Controller (`@WebMvcTest`): `ConsultaControllerTest` (7), `MedicoControllerTest` (8), `PacientesControllerTest` (10), `ProntuarioControllerTest` (24), `PrescricaoControllerTest` (15), `AtestadoControllerTest` (10), `EspecialidadeControllerTest` (10), `AutenticacaoControllerTest` (17), `ConvenioControllerTest` (10), `ConvenioPacienteControllerTest` (6), `MedicoConvenioControllerTest` (6), `DisponibilidadeMedicoControllerTest` (9), `AuditoriaControllerTest` (4), `EnderecoControllerTest` (8)
+- Frontend (Vitest, `frontend/`: `npm test`): 30 testes cobrindo `Users.test.tsx` (6), `FuncionarioDashboard.test.tsx` (6), `axios.test.ts` (5), `Doctors.cep.test.tsx` (3), `AuthContext.test.tsx` (3), `Login.test.tsx` (3), `Patients.cep.test.tsx` (2), `cep.test.ts` (2)
 - See `docs/TESTES.md` for full strategy
 
 ## Gotchas

@@ -82,4 +82,17 @@ public class PrescricaoService {
         return prescricaoRepository.findAllByAtivoTrueAndProntuarioId(prontuarioId, pageable)
                 .map(DadosListagemPrescricao::new);
     }
+
+    @Transactional(readOnly = true)
+    public Page<DadosListagemPrescricao> listarPorPaciente(Long pacienteId, Pageable pageable, Usuario usuarioLogado) {
+        if (usuarioLogado.getAuthorities().contains(Perfil.ROLE_MEDICO)) {
+            var medico = medicoRepository.findByUsuario(usuarioLogado)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Usuário não possui cadastro de médico"));
+            return prescricaoRepository
+                    .findAllByAtivoTrueAndProntuarioPacienteIdAndProntuarioMedicoId(pacienteId, medico.getId(), pageable)
+                    .map(DadosListagemPrescricao::new);
+        }
+        return prescricaoRepository.findAllByAtivoTrueAndProntuarioPacienteId(pacienteId, pageable)
+                .map(DadosListagemPrescricao::new);
+    }
 }

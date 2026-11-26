@@ -5,6 +5,9 @@ export const prescricoesApi = {
   listByProntuario: (prontuarioId: number, page = 0, size = 10) =>
     api.get<Page<PrescricaoListagem>>(`/prescricoes/prontuario/${prontuarioId}`, { params: { page, size } }).then(r => r.data),
 
+  listByPaciente: (pacienteId: number, page = 0, size = 10) =>
+    api.get<Page<PrescricaoListagem>>(`/prescricoes/paciente/${pacienteId}`, { params: { page, size } }).then(r => r.data),
+
   get: (id: number) =>
     api.get<PrescricaoDetalhamento>(`/prescricoes/${id}`).then(r => r.data),
 

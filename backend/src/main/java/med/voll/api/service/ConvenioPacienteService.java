@@ -43,8 +43,15 @@ public class ConvenioPacienteService {
             throw new ValidacaoException("Convênio está inativo.");
         }
 
-        if (convenioPacienteRepository.existsByPacienteIdAndConvenioIdAndAtivoTrue(pacienteId, dados.convenioId())) {
-            throw new ValidacaoException("Paciente já possui este convênio cadastrado.");
+        var existente = convenioPacienteRepository.findByPacienteIdAndConvenioId(pacienteId, dados.convenioId());
+        if (existente.isPresent()) {
+            var vinculo = existente.get();
+            if (vinculo.isAtivo()) {
+                throw new ValidacaoException("Paciente já possui este convênio cadastrado.");
+            }
+            vinculo.reativar(dados);
+            convenioPacienteRepository.save(vinculo);
+            return new DadosDetalhamentoConvenioPaciente(vinculo);
         }
 
         var convenioPaciente = new ConvenioPaciente(paciente, convenio, dados);

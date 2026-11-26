@@ -53,7 +53,7 @@ const quickActions: Array<{ label: string; href: string; icon: LucideIcon }> = [
   { label: 'Nova consulta', href: '/appointments', icon: Plus },
   { label: 'Novo paciente', href: '/patients', icon: UserPlus },
   { label: 'Consultar agenda', href: '/appointments', icon: Calendar },
-  { label: 'Localizar prontuário', href: '/medical-records', icon: FileSearch },
+  { label: 'Consultar atestados', href: '/certificates', icon: FileSearch },
 ];
 
 async function fetchAllActiveAppointments() {

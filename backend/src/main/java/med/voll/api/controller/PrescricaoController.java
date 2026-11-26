@@ -77,4 +77,19 @@ public class PrescricaoController {
     ) {
         return ResponseEntity.ok(prescricaoService.listarPorProntuario(prontuarioId, pageable, usuario));
     }
+
+    @GetMapping("/paciente/{pacienteId}")
+    @PreAuthorize("hasAnyRole('ROLE_FUNCIONARIO', 'ROLE_MEDICO', 'ROLE_AUDITOR', 'ROLE_GESTOR')")
+    @Operation(summary = "Listar prescrições do paciente", description = "Lista todas as prescrições ativas de um paciente sem expor dados do prontuário. Médico vê apenas as que emitiu")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Lista retornada com sucesso"),
+            @ApiResponse(responseCode = "403", description = "Acesso negado")
+    })
+    public ResponseEntity<Page<DadosListagemPrescricao>> listarPorPaciente(
+            @PathVariable Long pacienteId,
+            @ParameterObject @PageableDefault(size = 10) Pageable pageable,
+            @AuthenticationPrincipal Usuario usuario
+    ) {
+        return ResponseEntity.ok(prescricaoService.listarPorPaciente(pacienteId, pageable, usuario));
+    }
 }

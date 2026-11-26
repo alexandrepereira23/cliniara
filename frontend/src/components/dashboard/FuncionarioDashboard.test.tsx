@@ -117,7 +117,8 @@ describe('FuncionarioDashboard', () => {
     expect(screen.getByRole('link', { name: /Nova consulta/i })).toHaveAttribute('href', '/appointments');
     expect(screen.getByRole('link', { name: /Novo paciente/i })).toHaveAttribute('href', '/patients');
     expect(screen.getByRole('link', { name: /Consultar agenda/i })).toHaveAttribute('href', '/appointments');
-    expect(screen.getByRole('link', { name: /Localizar prontuário/i })).toHaveAttribute('href', '/medical-records');
+    expect(screen.getByRole('link', { name: /Consultar atestados/i })).toHaveAttribute('href', '/certificates');
+    expect(screen.queryByRole('link', { name: /Localizar prontuário/i })).not.toBeInTheDocument();
   });
 
   it('filtra a agenda localmente pelo nome do paciente', async () => {

@@ -41,8 +41,8 @@ public class ProntuarioController {
     }
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ROLE_FUNCIONARIO', 'ROLE_MEDICO', 'ROLE_AUDITOR', 'ROLE_GESTOR')")
-    @Operation(summary = "Listar prontuários", description = "Lista prontuários ativos. Médico vê apenas os seus; funcionário tem leitura operacional; auditor/gestor têm leitura ampla")
+    @PreAuthorize("hasAnyRole('ROLE_MEDICO', 'ROLE_AUDITOR', 'ROLE_GESTOR')")
+    @Operation(summary = "Listar prontuários", description = "Lista prontuários ativos. Médico vê apenas os seus; auditor/gestor têm leitura ampla")
     public ResponseEntity<Page<DadosListagemProntuario>> listar(
             @ParameterObject @PageableDefault(size = 10) Pageable pageable,
             @AuthenticationPrincipal Usuario usuario
@@ -51,7 +51,7 @@ public class ProntuarioController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ROLE_FUNCIONARIO', 'ROLE_MEDICO', 'ROLE_AUDITOR', 'ROLE_GESTOR')")
+    @PreAuthorize("hasAnyRole('ROLE_MEDICO', 'ROLE_AUDITOR', 'ROLE_GESTOR')")
     @Operation(summary = "Detalhar prontuário", description = "Retorna os dados completos de um prontuário")
     public ResponseEntity<DadosDetalhamentoProntuario> detalhar(
             @PathVariable Long id,
@@ -61,7 +61,7 @@ public class ProntuarioController {
     }
 
     @GetMapping("/paciente/{pacienteId}")
-    @PreAuthorize("hasAnyRole('ROLE_FUNCIONARIO', 'ROLE_MEDICO', 'ROLE_AUDITOR', 'ROLE_GESTOR')")
+    @PreAuthorize("hasAnyRole('ROLE_MEDICO', 'ROLE_AUDITOR', 'ROLE_GESTOR')")
     @Operation(summary = "Histórico do paciente", description = "Lista o histórico clínico de um paciente")
     public ResponseEntity<Page<DadosListagemProntuario>> listarPorPaciente(
             @PathVariable Long pacienteId,

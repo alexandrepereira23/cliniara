@@ -59,7 +59,7 @@ function Router() {
       <Route path="/doctors" component={() => <NonAdminRoute component={Doctors} />} />
       <Route path="/patients" component={() => <NonAdminRoute component={Patients} />} />
       <Route path="/appointments" component={() => <NonAdminRoute component={Appointments} />} />
-      <Route path="/medical-records" component={() => <NonAdminRoute component={MedicalRecords} />} />
+      <Route path="/medical-records" component={() => <MedicoRoute component={MedicalRecords} />} />
       <Route path="/prescriptions" component={() => <NonAdminRoute component={Prescriptions} />} />
       <Route path="/certificates" component={() => <NonAdminRoute component={Certificates} />} />
       <Route path="/specialties" component={() => <NonAdminRoute component={Specialties} />} />

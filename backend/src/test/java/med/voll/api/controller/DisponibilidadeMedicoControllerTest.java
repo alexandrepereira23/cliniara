@@ -35,6 +35,7 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(DisponibilidadeMedicoController.class)
@@ -146,5 +147,63 @@ class DisponibilidadeMedicoControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("deve rejeitar disponibilidade com horaInicio igual a horaFim")
+    void naoDeveCadastrarDisponibilidadeComHoraInicioIgualHoraFim() throws Exception {
+        var medico = medicoAtivo(1000L);
+        when(medicoRepository.findById(1000L)).thenReturn(Optional.of(medico));
+
+        var body = """
+                {"diaSemana":"MONDAY","horaInicio":"08:00:00","horaFim":"08:00:00"}
+                """;
+
+        mvc.perform(post("/medicos/1000/disponibilidade")
+                        .with(user(usuarioFuncionario())).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensagem").value("Hora de início deve ser anterior à hora de fim"));
+    }
+
+    @Test
+    @DisplayName("deve rejeitar disponibilidade com horaInicio posterior a horaFim")
+    void naoDeveCadastrarDisponibilidadeComHoraInicioPosteriorHoraFim() throws Exception {
+        var medico = medicoAtivo(1000L);
+        when(medicoRepository.findById(1000L)).thenReturn(Optional.of(medico));
+
+        var body = """
+                {"diaSemana":"MONDAY","horaInicio":"14:00:00","horaFim":"12:00:00"}
+                """;
+
+        mvc.perform(post("/medicos/1000/disponibilidade")
+                        .with(user(usuarioFuncionario())).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensagem").value("Hora de início deve ser anterior à hora de fim"));
+    }
+
+    @Test
+    @DisplayName("deve rejeitar disponibilidade sobreposta no mesmo dia da semana")
+    void naoDeveCadastrarDisponibilidadeSobreposta() throws Exception {
+        var medico = medicoAtivo(1000L);
+        when(medicoRepository.findById(1000L)).thenReturn(Optional.of(medico));
+        when(disponibilidadeRepository
+                .existsByMedicoIdAndDiaSemanaAndAtivoTrueAndHoraInicioLessThanAndHoraFimGreaterThan(
+                        1000L, DayOfWeek.MONDAY, LocalTime.of(13, 0), LocalTime.of(10, 0)))
+                .thenReturn(true);
+
+        var body = """
+                {"diaSemana":"MONDAY","horaInicio":"10:00:00","horaFim":"13:00:00"}
+                """;
+
+        mvc.perform(post("/medicos/1000/disponibilidade")
+                        .with(user(usuarioFuncionario())).with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.mensagem").value("Já existe horário de disponibilidade sobreposto para este médico neste dia"));
     }
 }

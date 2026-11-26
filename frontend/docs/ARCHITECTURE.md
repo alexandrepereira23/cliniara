@@ -15,7 +15,7 @@ Frontend SPA em React 19 + TypeScript 5.6 + Vite 7. A comunicação com o backen
 - Sonner para notificações (toasts)
 - Recharts para gráficos e Framer Motion para transições pontuais
 - Lucide React para ícones
-- Vitest + Testing Library para testes automatizados (`29` testes passando)
+- Vitest + Testing Library para testes automatizados (`30` testes passando)
 
 ## Estrutura Real
 
@@ -56,7 +56,7 @@ Arquivos atuais em `frontend/src/api/`:
 - `pacientes.ts` — CRUD e listagem paginada de pacientes.
 - `consultas.ts` — agendamento, listagem paginada e cancelamento de consultas.
 - `prontuarios.ts` — listagem geral/por paciente, detalhamento e criação de prontuários.
-- `prescricoes.ts` — criação, detalhamento e listagem de prescrições por prontuário.
+- `prescricoes.ts` — criação, detalhamento e listagem de prescrições por paciente (`GET /prescricoes/paciente/{pacienteId}`) e por prontuário.
 - `atestados.ts` — emissão, detalhamento e histórico de atestados por paciente.
 - `especialidades.ts` — CRUD e listagem de especialidades.
 - `convenios.ts` — CRUD e listagem de convênios.
@@ -84,7 +84,7 @@ Rotas atuais em `src/App.tsx`:
 | `/doctors` | `Doctors` | `NonAdminRoute` |
 | `/patients` | `Patients` | `NonAdminRoute` |
 | `/appointments` | `Appointments` | `NonAdminRoute` |
-| `/medical-records` | `MedicalRecords` | `NonAdminRoute` |
+| `/medical-records` | `MedicalRecords` | `MedicoRoute` — apenas `ROLE_MEDICO` |
 | `/prescriptions` | `Prescriptions` | `NonAdminRoute` |
 | `/certificates` | `Certificates` | `NonAdminRoute` |
 | `/specialties` | `Specialties` | `NonAdminRoute` |
@@ -101,7 +101,7 @@ A segurança efetiva é aplicada pelo backend (`@PreAuthorize` + filtros de owne
 - `ROLE_ADMIN`: vê apenas `/users`.
 - `ROLE_AUDITOR` e `ROLE_GESTOR`: veem apenas `/audit` na navegação atual.
 - `ROLE_MEDICO`: vê módulos clínicos/agenda (incluindo `/clinical-ai`), ocultando `/users`, `/specialties`, `/insurance` e `/audit`.
-- `ROLE_FUNCIONARIO`: vê módulos operacionais e leitura clínica operacional, ocultando `/users`, `/audit` e `/clinical-ai`.
+- `ROLE_FUNCIONARIO`: vê módulos operacionais, `/prescriptions` e `/certificates` (sem expor prontuários/diagnósticos), ocultando `/medical-records`, `/users`, `/audit` e `/clinical-ai`.
 
 ## Estado Atual das Páginas e Artefatos Legados
 
@@ -112,9 +112,9 @@ Todas as páginas listadas no roteador consomem exclusivamente a API real:
 
 ## Testes Automatizados
 
-Configurados via `vitest.config.ts` (`jsdom` + `@testing-library/react`), somando **29 testes** em 8 arquivos:
+Configurados via `vitest.config.ts` (`jsdom` + `@testing-library/react`), somando **30 testes** em 8 arquivos:
 
-- `src/api/axios.test.ts` (5), `src/api/cep.test.ts` (2), `src/contexts/AuthContext.test.tsx` (3), `src/components/dashboard/FuncionarioDashboard.test.tsx` (6), `src/pages/Users.test.tsx` (6), `src/pages/Doctors.cep.test.tsx` (3), `src/pages/Patients.cep.test.tsx` (2), `src/pages/Login.test.tsx` (2).
+- `src/api/axios.test.ts` (5), `src/api/cep.test.ts` (2), `src/contexts/AuthContext.test.tsx` (3), `src/components/dashboard/FuncionarioDashboard.test.tsx` (6), `src/pages/Users.test.tsx` (6), `src/pages/Doctors.cep.test.tsx` (3), `src/pages/Patients.cep.test.tsx` (2), `src/pages/Login.test.tsx` (3).
 - Validação completa de CI: `npm test`, `npm run check` (`tsc --noEmit`), `npm run build` (`tsc -b && vite build`) e `npm audit`.
 
 ## Convenções

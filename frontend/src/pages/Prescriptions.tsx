@@ -83,28 +83,32 @@ export default function Prescriptions() {
       .finally(() => setLoadingPatients(false));
   }, []);
 
-  // carregar prontuários ao selecionar paciente
+  // carregar prontuários apenas para médico ao selecionar paciente
   useEffect(() => {
     setSelectedProntuarioId('');
     setProntuarios([]);
     setPrescricoes([]);
-    if (!selectedPacienteId) return;
+    if (!isMedico || !selectedPacienteId) return;
     setLoadingProntuarios(true);
     prontuariosApi.listByPaciente(Number(selectedPacienteId), 0, 50)
       .then(r => setProntuarios(r.content))
       .catch(() => toast.error('Erro ao carregar prontuários'))
       .finally(() => setLoadingProntuarios(false));
-  }, [selectedPacienteId]);
+  }, [isMedico, selectedPacienteId]);
 
-  // carregar prescrições ao selecionar prontuário
+  // carregar prescrições por prontuário (quando médico seleciona um) ou diretamente por paciente
   const fetchPrescricoes = (p = 0) => {
-    if (!selectedProntuarioId) return;
+    if (!selectedPacienteId) return;
     setLoadingPresc(true);
-    prescricoesApi.listByProntuario(Number(selectedProntuarioId), p)
+    const request = isMedico && selectedProntuarioId
+      ? prescricoesApi.listByProntuario(Number(selectedProntuarioId), p)
+      : prescricoesApi.listByPaciente(Number(selectedPacienteId), p);
+
+    request
       .then(r => { setPrescricoes(r.content); setTotalPages(r.totalPages); })
       .catch(err => {
         const status = err?.response?.status;
-        if (status === 403) toast.error('Acesso negado a este prontuário');
+        if (status === 403) toast.error('Acesso negado às prescrições');
         else toast.error('Erro ao carregar prescrições');
         setPrescricoes([]);
       })
@@ -114,7 +118,7 @@ export default function Prescriptions() {
   useEffect(() => {
     setPage(0);
     fetchPrescricoes(0);
-  }, [selectedProntuarioId]);
+  }, [selectedPacienteId, selectedProntuarioId, isMedico]);
 
   // --- itens helpers ---
   const updateItem = (idx: number, field: keyof ItemPrescricaoCadastro, value: string) =>
@@ -164,14 +168,14 @@ export default function Prescriptions() {
         <PageHeader
           icon={Pill}
           title="Prescrições"
-          description="Consulte prescrições por paciente e prontuário"
+          description={isMedico ? 'Consulte e emita prescrições por paciente e prontuário' : 'Consulte prescrições por paciente'}
           actionLabel={isMedico && selectedProntuarioId ? 'Nova Prescrição' : undefined}
           onAction={isMedico && selectedProntuarioId ? handleOpenCreate : undefined}
         />
 
         {/* Filtros */}
         <Card className="border-border">
-          <div className="p-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className={`p-6 grid grid-cols-1 gap-4 ${isMedico ? 'sm:grid-cols-2' : ''}`}>
             <div>
               <Label className="mb-1.5 block">Paciente</Label>
               <Select
@@ -192,41 +196,45 @@ export default function Prescriptions() {
               </Select>
             </div>
 
-            <div>
-              <Label className="mb-1.5 block">Prontuário</Label>
-              <Select
-                value={selectedProntuarioId}
-                onValueChange={setSelectedProntuarioId}
-                disabled={!selectedPacienteId || loadingProntuarios}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={
-                    !selectedPacienteId ? 'Selecione o paciente primeiro'
-                    : loadingProntuarios ? 'Carregando...'
-                    : prontuarios.length === 0 ? 'Nenhum prontuário encontrado'
-                    : 'Selecione o prontuário'
-                  } />
-                </SelectTrigger>
-                <SelectContent>
-                  {prontuarios.map(p => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      #{p.id} — {p.diagnostico} ({formatDate(p.dataRegistro)})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {isMedico && (
+              <div>
+                <Label className="mb-1.5 block">Prontuário (para filtrar ou emitir)</Label>
+                <Select
+                  value={selectedProntuarioId}
+                  onValueChange={setSelectedProntuarioId}
+                  disabled={!selectedPacienteId || loadingProntuarios}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={
+                      !selectedPacienteId ? 'Selecione o paciente primeiro'
+                      : loadingProntuarios ? 'Carregando...'
+                      : prontuarios.length === 0 ? 'Nenhum prontuário encontrado'
+                      : 'Todos os prontuários (ou selecione para emitir)'
+                    } />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {prontuarios.map(p => (
+                      <SelectItem key={p.id} value={String(p.id)}>
+                        #{p.id} — {p.diagnostico} ({formatDate(p.dataRegistro)})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </Card>
 
         {/* Lista */}
         {loadingPresc ? (
           <Card className="border-border p-12 text-center text-muted-foreground">Carregando...</Card>
-        ) : selectedProntuarioId && prescricoes.length > 0 ? (
+        ) : selectedPacienteId && prescricoes.length > 0 ? (
           <Card className="border-border overflow-hidden">
             <div className="px-6 py-3 border-b bg-muted/30">
               <p className="text-sm font-medium">
-                Prescrições — {selectedPaciente?.nome} / Prontuário #{selectedProntuario?.id}: {selectedProntuario?.diagnostico}
+                {isMedico && selectedProntuario
+                  ? `Prescrições — ${selectedPaciente?.nome} / Prontuário #${selectedProntuario.id}: ${selectedProntuario.diagnostico}`
+                  : `Prescrições — ${selectedPaciente?.nome}`}
               </p>
             </div>
             <div className="overflow-x-auto">
@@ -274,25 +282,23 @@ export default function Prescriptions() {
               </div>
             )}
           </Card>
-        ) : selectedProntuarioId && !loadingPresc ? (
+        ) : selectedPacienteId && !loadingPresc ? (
           <EmptyState
             icon={Pill}
             title="Nenhuma prescrição encontrada"
-            description={`Nenhuma prescrição registrada para o prontuário #${selectedProntuarioId}.${isMedico ? ' Use o botão "Nova Prescrição" para criar.' : ''}`}
+            description={
+              isMedico && selectedProntuarioId
+                ? `Nenhuma prescrição registrada para o prontuário #${selectedProntuarioId}. Use o botão "Nova Prescrição" para criar.`
+                : `Nenhuma prescrição registrada para ${selectedPaciente?.nome ?? 'este paciente'}.`
+            }
           />
-        ) : !selectedPacienteId ? (
+        ) : (
           <EmptyState
             icon={Pill}
             title="Selecione um paciente"
-            description="Escolha o paciente e o prontuário para visualizar as prescrições."
+            description={isMedico ? 'Escolha o paciente e, se desejar emitir, o prontuário correspondente.' : 'Escolha o paciente para visualizar suas prescrições.'}
           />
-        ) : !selectedProntuarioId ? (
-          <EmptyState
-            icon={Pill}
-            title="Selecione um prontuário"
-            description="Escolha o prontuário do paciente para visualizar as prescrições."
-          />
-        ) : null}
+        )}
       </div>
 
       {/* Modal detalhe */}

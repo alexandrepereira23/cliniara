@@ -12,4 +12,9 @@ public interface PrescricaoRepository extends JpaRepository<Prescricao, Long> {
 
     Page<Prescricao> findAllByAtivoTrueAndProntuarioIdAndProntuarioMedicoId(
             Long prontuarioId, Long medicoId, Pageable pageable);
+
+    Page<Prescricao> findAllByAtivoTrueAndProntuarioPacienteId(Long pacienteId, Pageable pageable);
+
+    Page<Prescricao> findAllByAtivoTrueAndProntuarioPacienteIdAndProntuarioMedicoId(
+            Long pacienteId, Long medicoId, Pageable pageable);
 }

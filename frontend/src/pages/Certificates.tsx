@@ -55,14 +55,14 @@ export default function Certificates() {
   useEffect(() => {
     setSelectedProntuarioId('');
     setProntuarios([]);
-    if (!selectedPacienteId) return;
+    if (!isMedico || !selectedPacienteId) return;
 
     setLoadingProntuarios(true);
     prontuariosApi.listByPaciente(Number(selectedPacienteId), 0, 50)
       .then(r => setProntuarios(r.content))
       .catch(() => toast.error('Erro ao carregar prontuários'))
       .finally(() => setLoadingProntuarios(false));
-  }, [selectedPacienteId]);
+  }, [isMedico, selectedPacienteId]);
 
   const fetchAtestados = () => {
     if (!selectedPacienteId) { setCerts([]); return; }
@@ -123,7 +123,7 @@ export default function Certificates() {
         />
 
         <Card className="border-border">
-          <div className="grid grid-cols-1 gap-4 p-6 sm:grid-cols-2">
+          <div className={`grid grid-cols-1 gap-4 p-6 ${isMedico ? 'sm:grid-cols-2' : ''}`}>
             <div>
               <Label className="mb-2 block">Paciente</Label>
               <Select value={selectedPacienteId} onValueChange={setSelectedPacienteId} disabled={loadingPatients}>
@@ -140,30 +140,32 @@ export default function Certificates() {
               </Select>
             </div>
 
-            <div>
-              <Label className="mb-2 block">Prontuário para emissão</Label>
-              <Select
-                value={selectedProntuarioId}
-                onValueChange={setSelectedProntuarioId}
-                disabled={!selectedPacienteId || loadingProntuarios}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={
-                    !selectedPacienteId ? 'Selecione o paciente primeiro'
-                    : loadingProntuarios ? 'Carregando...'
-                    : prontuarios.length === 0 ? 'Nenhum prontuário encontrado'
-                    : 'Selecione o prontuário'
-                  } />
-                </SelectTrigger>
-                <SelectContent>
-                  {prontuarios.map(p => (
-                    <SelectItem key={p.id} value={String(p.id)}>
-                      #{p.id} - {p.diagnostico} ({formatDate(p.dataRegistro)})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {isMedico && (
+              <div>
+                <Label className="mb-2 block">Prontuário para emissão</Label>
+                <Select
+                  value={selectedProntuarioId}
+                  onValueChange={setSelectedProntuarioId}
+                  disabled={!selectedPacienteId || loadingProntuarios}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={
+                      !selectedPacienteId ? 'Selecione o paciente primeiro'
+                      : loadingProntuarios ? 'Carregando...'
+                      : prontuarios.length === 0 ? 'Nenhum prontuário encontrado'
+                      : 'Selecione o prontuário'
+                    } />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {prontuarios.map(p => (
+                      <SelectItem key={p.id} value={String(p.id)}>
+                        #{p.id} - {p.diagnostico} ({formatDate(p.dataRegistro)})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </Card>
 

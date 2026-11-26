@@ -41,6 +41,16 @@ public class DisponibilidadeMedicoController {
                 .filter(Medico::isAtivo)
                 .orElseThrow(() -> new ValidacaoException("Médico não encontrado ou inativo"));
 
+        if (!dados.horaInicio().isBefore(dados.horaFim())) {
+            throw new ValidacaoException("Hora de início deve ser anterior à hora de fim");
+        }
+
+        if (disponibilidadeRepository
+                .existsByMedicoIdAndDiaSemanaAndAtivoTrueAndHoraInicioLessThanAndHoraFimGreaterThan(
+                        medicoId, dados.diaSemana(), dados.horaFim(), dados.horaInicio())) {
+            throw new ValidacaoException("Já existe horário de disponibilidade sobreposto para este médico neste dia");
+        }
+
         var disponibilidade = new DisponibilidadeMedico(
                 medico, dados.diaSemana(), dados.horaInicio(), dados.horaFim());
         disponibilidadeRepository.save(disponibilidade);

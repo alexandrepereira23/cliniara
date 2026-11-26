@@ -23,6 +23,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.mapping.JpaMetamodelMappingContext;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.bind.annotation.RestController;
@@ -84,6 +85,24 @@ class AutenticacaoControllerTest {
                         .content(objectMapper.writeValueAsString(dados)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.tokenJWT").value("mocked.jwt.token"));
+    }
+
+    @Test
+    @WithMockUser
+    @DisplayName("login com conta de médico inativa deve retornar 403 com mensagem clara")
+    void deveRetornar403AoFazerLoginComContaInativa() throws Exception {
+        when(authenticationManager.authenticate(any()))
+                .thenThrow(new DisabledException("User is disabled"));
+
+        var dados = new DadosAutenticacao("medico.inativo@test.com", "senha123");
+
+        mvc.perform(post("/auth/login")
+                        .with(csrf())
+                        .with(request -> { request.setRemoteAddr("10.0.0.5"); return request; })
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dados)))
+                .andExpect(status().isForbidden())
+                .andExpect(content().string("Conta de usuário inativa"));
     }
 
     @Test

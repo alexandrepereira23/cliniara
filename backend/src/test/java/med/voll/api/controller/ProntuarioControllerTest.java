@@ -97,14 +97,22 @@ class ProntuarioControllerTest {
     }
 
     @Test
-    @DisplayName("ROLE_FUNCIONARIO deve listar prontuários e receber 200")
-    void deveListarProntuarios() throws Exception {
+    @DisplayName("ROLE_MEDICO deve listar prontuários e receber 200")
+    void deveListarProntuariosComMedico() throws Exception {
         when(prontuarioService.listar(any(Pageable.class), any(Usuario.class)))
                 .thenReturn(new PageImpl<>(List.of()));
 
         mvc.perform(get("/prontuarios")
-                        .with(user(usuarioFuncionario())))
+                        .with(user(usuarioMedico())))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("ROLE_FUNCIONARIO não deve listar prontuários — deve receber 403")
+    void naoDeveListarProntuariosComFuncionario() throws Exception {
+        mvc.perform(get("/prontuarios")
+                        .with(user(usuarioFuncionario())))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -138,14 +146,22 @@ class ProntuarioControllerTest {
     }
 
     @Test
-    @DisplayName("ROLE_FUNCIONARIO deve detalhar prontuário e receber 200")
-    void deveDetalharProntuario() throws Exception {
+    @DisplayName("ROLE_MEDICO deve detalhar prontuário e receber 200")
+    void deveDetalharProntuarioComMedico() throws Exception {
         when(prontuarioService.detalhar(anyLong(), any(Usuario.class))).thenReturn(detalhamento());
 
         mvc.perform(get("/prontuarios/1")
-                        .with(user(usuarioFuncionario())))
+                        .with(user(usuarioMedico())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.nomeMedico").value("Dr. João"));
+    }
+
+    @Test
+    @DisplayName("ROLE_FUNCIONARIO não deve detalhar prontuário — deve receber 403")
+    void naoDeveDetalharProntuarioComFuncionario() throws Exception {
+        mvc.perform(get("/prontuarios/1")
+                        .with(user(usuarioFuncionario())))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -190,6 +206,14 @@ class ProntuarioControllerTest {
         mvc.perform(get("/prontuarios/paciente/1")
                         .with(user(usuarioGestor())))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("ROLE_FUNCIONARIO não deve listar prontuários por paciente — deve receber 403")
+    void naoDeveListarProntuariosPorPacienteComFuncionario() throws Exception {
+        mvc.perform(get("/prontuarios/paciente/1")
+                        .with(user(usuarioFuncionario())))
+                .andExpect(status().isForbidden());
     }
 
     @Test

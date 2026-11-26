@@ -60,7 +60,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     if (user?.role === 'ROLE_ADMIN') return item.href === '/users';
     if (user?.role === 'ROLE_AUDITOR' || user?.role === 'ROLE_GESTOR') return item.href === '/audit';
     if (user?.role === 'ROLE_MEDICO') return !['/users', '/specialties', '/insurance', '/audit'].includes(item.href);
-    return !['/users', '/audit', '/clinical-ai'].includes(item.href);
+    return !['/users', '/audit', '/clinical-ai', '/medical-records'].includes(item.href);
   });
 
   return (

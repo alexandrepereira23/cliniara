@@ -37,8 +37,12 @@ export default function Login() {
       await login(data.login, data.senha)
       window.location.href = '/'
     } catch (err) {
-      const status = (err as AxiosError)?.response?.status
-      if (status === 401 || status === 403) {
+      const axiosErr = err as AxiosError<unknown>
+      const status = axiosErr?.response?.status
+      const responseData = axiosErr?.response?.data
+      if (status === 403 && typeof responseData === 'string' && responseData.trim()) {
+        setAuthError(responseData.trim())
+      } else if (status === 401 || status === 403) {
         setAuthError('Credenciais inválidas. Verifique seu login e senha.')
       } else if (status === 429) {
         setAuthError('Muitas tentativas. Aguarde 15 minutos antes de tentar novamente.')

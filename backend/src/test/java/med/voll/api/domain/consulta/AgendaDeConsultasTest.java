@@ -2,10 +2,13 @@ package med.voll.api.domain.consulta;
 
 import med.voll.api.domain.convenio.Convenio;
 import med.voll.api.domain.convenio.ConvenioRepository;
+import med.voll.api.domain.convenio.TipoConvenio;
 import med.voll.api.domain.medico.DisponibilidadeMedicoRepository;
 import med.voll.api.domain.medico.Medico;
 import med.voll.api.domain.medico.MedicoConvenioRepository;
 import med.voll.api.domain.medico.MedicoRepository;
+import med.voll.api.domain.paciente.ConvenioPaciente;
+import med.voll.api.domain.paciente.ConvenioPacienteRepository;
 import med.voll.api.domain.paciente.Paciente;
 import med.voll.api.domain.paciente.PacienteRepository;
 import med.voll.api.exception.ValidacaoException;
@@ -19,6 +22,7 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.Optional;
@@ -39,6 +43,7 @@ class AgendaDeConsultasTest {
     @Mock DisponibilidadeMedicoRepository disponibilidadeRepository;
     @Mock ConvenioRepository convenioRepository;
     @Mock MedicoConvenioRepository medicoConvenioRepository;
+    @Mock ConvenioPacienteRepository convenioPacienteRepository;
 
     @InjectMocks AgendaDeConsultas agenda;
 
@@ -319,23 +324,253 @@ class AgendaDeConsultasTest {
     }
 
     @Test
-    @DisplayName("deve agendar consulta com convênio aceito pelo médico")
+    @DisplayName("deve agendar consulta com convênio PLANO aceito pelo médico e carteirinha válida do paciente")
     void deveAgendarConsultaComConvenioAceito() {
         var paciente = pacienteAtivo();
         var medico = medicoAtivo();
         var data = dataValida();
         var convenio = mock(Convenio.class);
         when(convenio.isAtivo()).thenReturn(true);
+        when(convenio.getTipo()).thenReturn(TipoConvenio.PLANO);
+
+        var vinculoPaciente = mock(ConvenioPaciente.class);
+        when(vinculoPaciente.isAtivo()).thenReturn(true);
+        when(vinculoPaciente.getValidade()).thenReturn(data.toLocalDate().plusDays(30));
 
         configurarCenarioFeliz(medico, paciente, data);
         when(convenioRepository.findById(10L)).thenReturn(Optional.of(convenio));
         when(medicoConvenioRepository.existsByMedicoIdAndConvenioIdAndAtivoTrue(1L, 10L)).thenReturn(true);
+        when(convenioPacienteRepository.findByPacienteIdAndConvenioId(1L, 10L)).thenReturn(Optional.of(vinculoPaciente));
 
         var dados = new DadosAgendamentoConsulta(1L, 1L, data, PrioridadeConsulta.ROTINA, null, 10L);
 
         var resultado = agenda.agendar(dados);
         assertThat(resultado).isNotNull();
         verify(consultaRepository).save(any(Consulta.class));
+    }
+
+    @Test
+    @DisplayName("deve lançar exceção quando convênio PLANO não possui vínculo ativo com o paciente")
+    void deveLancarExcecaoQuandoConvenioPlanoSemVinculoAtivoDoPaciente() {
+        var paciente = pacienteAtivo();
+        var medico = medicoAtivo();
+        var data = dataValida();
+        var convenio = mock(Convenio.class);
+        when(convenio.isAtivo()).thenReturn(true);
+        when(convenio.getTipo()).thenReturn(TipoConvenio.PLANO);
+
+        configurarCenarioFeliz(medico, paciente, data);
+        when(convenioRepository.findById(10L)).thenReturn(Optional.of(convenio));
+        when(medicoConvenioRepository.existsByMedicoIdAndConvenioIdAndAtivoTrue(1L, 10L)).thenReturn(true);
+        when(convenioPacienteRepository.findByPacienteIdAndConvenioId(1L, 10L)).thenReturn(Optional.empty());
+
+        var dados = new DadosAgendamentoConsulta(1L, 1L, data, PrioridadeConsulta.ROTINA, null, 10L);
+
+        assertThatThrownBy(() -> agenda.agendar(dados))
+                .isInstanceOf(ValidacaoException.class)
+                .hasMessageContaining("vínculo ativo");
+    }
+
+    @Test
+    @DisplayName("deve lançar exceção quando carteirinha do convênio PLANO está vencida na data da consulta")
+    void deveLancarExcecaoQuandoCarteirinhaPlanoVencida() {
+        var paciente = pacienteAtivo();
+        var medico = medicoAtivo();
+        var data = dataValida();
+        var convenio = mock(Convenio.class);
+        when(convenio.isAtivo()).thenReturn(true);
+        when(convenio.getTipo()).thenReturn(TipoConvenio.PLANO);
+
+        var vinculoPaciente = mock(ConvenioPaciente.class);
+        when(vinculoPaciente.isAtivo()).thenReturn(true);
+        when(vinculoPaciente.getValidade()).thenReturn(data.toLocalDate().minusDays(1));
+
+        configurarCenarioFeliz(medico, paciente, data);
+        when(convenioRepository.findById(10L)).thenReturn(Optional.of(convenio));
+        when(medicoConvenioRepository.existsByMedicoIdAndConvenioIdAndAtivoTrue(1L, 10L)).thenReturn(true);
+        when(convenioPacienteRepository.findByPacienteIdAndConvenioId(1L, 10L)).thenReturn(Optional.of(vinculoPaciente));
+
+        var dados = new DadosAgendamentoConsulta(1L, 1L, data, PrioridadeConsulta.ROTINA, null, 10L);
+
+        assertThatThrownBy(() -> agenda.agendar(dados))
+                .isInstanceOf(ValidacaoException.class)
+                .hasMessageContaining("vencida");
+    }
+
+    @Test
+    @DisplayName("deve agendar consulta com convênio PARTICULAR sem exigir carteirinha do paciente")
+    void deveAgendarConsultaComConvenioParticularSemExigirCarteirinha() {
+        var paciente = pacienteAtivo();
+        var medico = medicoAtivo();
+        var data = dataValida();
+        var convenio = mock(Convenio.class);
+        when(convenio.isAtivo()).thenReturn(true);
+        when(convenio.getTipo()).thenReturn(TipoConvenio.PARTICULAR);
+
+        configurarCenarioFeliz(medico, paciente, data);
+        when(convenioRepository.findById(20L)).thenReturn(Optional.of(convenio));
+        when(medicoConvenioRepository.existsByMedicoIdAndConvenioIdAndAtivoTrue(1L, 20L)).thenReturn(true);
+
+        var dados = new DadosAgendamentoConsulta(1L, 1L, data, PrioridadeConsulta.ROTINA, null, 20L);
+
+        var resultado = agenda.agendar(dados);
+        assertThat(resultado).isNotNull();
+        verifyNoInteractions(convenioPacienteRepository);
+        verify(consultaRepository).save(any(Consulta.class));
+    }
+
+    // ── testes de retorno ─────────────────────────────────────────────────────
+
+    private Consulta consultaOrigemAtiva(Medico medico, Paciente paciente, LocalDateTime dataHora) {
+        var origem = mock(Consulta.class);
+        when(origem.getId()).thenReturn(50L);
+        when(origem.isAtivo()).thenReturn(true);
+        when(origem.getMedico()).thenReturn(medico);
+        when(origem.getPaciente()).thenReturn(paciente);
+        when(origem.getDataHora()).thenReturn(dataHora);
+        return origem;
+    }
+
+    @Test
+    @DisplayName("deve lançar exceção quando retorno pertencer a outro paciente")
+    void deveLancarExcecaoQuandoRetornoForDeOutroPaciente() {
+        var paciente = pacienteAtivo();
+        var outroPaciente = mock(Paciente.class);
+        when(outroPaciente.getId()).thenReturn(2L);
+        var medico = medicoAtivo();
+        var dataRetorno = dataValida();
+        var origem = consultaOrigemAtiva(medico, outroPaciente, dataRetorno.minusDays(5));
+
+        configurarCenarioFeliz(medico, paciente, dataRetorno);
+        when(consultaRepository.findById(50L)).thenReturn(Optional.of(origem));
+
+        var dados = new DadosAgendamentoConsulta(1L, 1L, dataRetorno, PrioridadeConsulta.ROTINA, 50L, null);
+
+        assertThatThrownBy(() -> agenda.agendar(dados))
+                .isInstanceOf(ValidacaoException.class)
+                .hasMessageContaining("mesmo paciente");
+    }
+
+    @Test
+    @DisplayName("deve lançar exceção quando retorno não for posterior à consulta original")
+    void deveLancarExcecaoQuandoRetornoNaoForPosteriorAConsultaOriginal() {
+        var paciente = pacienteAtivo();
+        var medico = medicoAtivo();
+        var dataRetorno = dataValida();
+        var origem = consultaOrigemAtiva(medico, paciente, dataRetorno);
+
+        configurarCenarioFeliz(medico, paciente, dataRetorno);
+        when(consultaRepository.findById(50L)).thenReturn(Optional.of(origem));
+
+        var dados = new DadosAgendamentoConsulta(1L, 1L, dataRetorno, PrioridadeConsulta.ROTINA, 50L, null);
+
+        assertThatThrownBy(() -> agenda.agendar(dados))
+                .isInstanceOf(ValidacaoException.class)
+                .hasMessageContaining("após a data e horário");
+    }
+
+    @Test
+    @DisplayName("deve lançar exceção quando retorno ultrapassar 30 dias da consulta original")
+    void deveLancarExcecaoQuandoRetornoUltrapassar30Dias() {
+        var paciente = pacienteAtivo();
+        var medico = medicoAtivo();
+        var dataRetorno = dataValida();
+        var origem = consultaOrigemAtiva(medico, paciente, dataRetorno.minusDays(31));
+
+        configurarCenarioFeliz(medico, paciente, dataRetorno);
+        when(consultaRepository.findById(50L)).thenReturn(Optional.of(origem));
+
+        var dados = new DadosAgendamentoConsulta(1L, 1L, dataRetorno, PrioridadeConsulta.ROTINA, 50L, null);
+
+        assertThatThrownBy(() -> agenda.agendar(dados))
+                .isInstanceOf(ValidacaoException.class)
+                .hasMessageContaining("30 dias");
+    }
+
+    @Test
+    @DisplayName("deve lançar exceção quando retorno for agendado com médico diferente da consulta original")
+    void deveLancarExcecaoQuandoRetornoForComOutroMedico() {
+        var paciente = pacienteAtivo();
+        var medico = medicoAtivo();
+        var medicoOriginal = mock(Medico.class);
+        when(medicoOriginal.getId()).thenReturn(2L);
+        when(medicoOriginal.isAtivo()).thenReturn(true);
+
+        var dataRetorno = dataValida();
+        var origem = consultaOrigemAtiva(medicoOriginal, paciente, dataRetorno.minusDays(5));
+
+        configurarCenarioFeliz(medico, paciente, dataRetorno);
+        when(consultaRepository.findById(50L)).thenReturn(Optional.of(origem));
+        when(consultaRepository.existsByConsultaOrigemIdAndAtivoTrue(50L)).thenReturn(false);
+
+        var dados = new DadosAgendamentoConsulta(1L, 1L, dataRetorno, PrioridadeConsulta.ROTINA, 50L, null);
+
+        assertThatThrownBy(() -> agenda.agendar(dados))
+                .isInstanceOf(ValidacaoException.class)
+                .hasMessageContaining("mesmo médico");
+    }
+
+    @Test
+    @DisplayName("deve lançar exceção quando já existir retorno ativo para a consulta original")
+    void deveLancarExcecaoQuandoJaExistirRetornoAtivo() {
+        var paciente = pacienteAtivo();
+        var medico = medicoAtivo();
+        var dataRetorno = dataValida();
+        var origem = consultaOrigemAtiva(medico, paciente, dataRetorno.minusDays(5));
+
+        configurarCenarioFeliz(medico, paciente, dataRetorno);
+        when(consultaRepository.findById(50L)).thenReturn(Optional.of(origem));
+        when(consultaRepository.existsByConsultaOrigemIdAndAtivoTrue(50L)).thenReturn(true);
+
+        var dados = new DadosAgendamentoConsulta(1L, 1L, dataRetorno, PrioridadeConsulta.ROTINA, 50L, null);
+
+        assertThatThrownBy(() -> agenda.agendar(dados))
+                .isInstanceOf(ValidacaoException.class)
+                .hasMessageContaining("retorno ativo");
+    }
+
+    @Test
+    @DisplayName("deve assumir automaticamente o médico da consulta original no retorno quando idMedico for omitido e retorno anterior foi cancelado")
+    void deveAssumirMedicoOriginalNoRetornoQuandoIdMedicoOmitido() {
+        var paciente = pacienteAtivo();
+        var medico = medicoAtivo();
+        var dataRetorno = dataValida();
+        var origem = consultaOrigemAtiva(medico, paciente, dataRetorno.minusDays(7));
+
+        configurarCenarioFeliz(medico, paciente, dataRetorno);
+        when(consultaRepository.findById(50L)).thenReturn(Optional.of(origem));
+        when(consultaRepository.existsByConsultaOrigemIdAndAtivoTrue(50L)).thenReturn(false);
+
+        var dados = new DadosAgendamentoConsulta(1L, null, dataRetorno, PrioridadeConsulta.ROTINA, 50L, null);
+
+        var resultado = agenda.agendar(dados);
+
+        assertThat(resultado).isNotNull();
+        assertThat(resultado.idMedico()).isEqualTo(1L);
+        verify(medicoRepository, never()).escolherMedicoAleatorioLivreNaData(any(), any(), any());
+        verify(consultaRepository).save(any(Consulta.class));
+    }
+
+    @Test
+    @DisplayName("deve lançar exceção no retorno sem médico informado quando o médico original estiver inativo")
+    void deveLancarExcecaoNoRetornoQuandoMedicoOriginalEstiverInativo() {
+        var paciente = pacienteAtivo();
+        var medicoInativo = mock(Medico.class);
+        when(medicoInativo.getId()).thenReturn(1L);
+        when(medicoInativo.isAtivo()).thenReturn(false);
+
+        var dataRetorno = dataValida();
+        var origem = consultaOrigemAtiva(medicoInativo, paciente, dataRetorno.minusDays(7));
+
+        configurarCenarioFeliz(medicoInativo, paciente, dataRetorno);
+        when(consultaRepository.findById(50L)).thenReturn(Optional.of(origem));
+        when(consultaRepository.existsByConsultaOrigemIdAndAtivoTrue(50L)).thenReturn(false);
+
+        var dados = new DadosAgendamentoConsulta(1L, null, dataRetorno, PrioridadeConsulta.ROTINA, 50L, null);
+
+        assertThatThrownBy(() -> agenda.agendar(dados))
+                .isInstanceOf(ValidacaoException.class)
+                .hasMessageContaining("médico da consulta original está inativo");
     }
 
     // ── testes de cancelamento ────────────────────────────────────────────────

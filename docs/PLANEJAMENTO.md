@@ -80,13 +80,21 @@ Este documento organiza as fases do projeto. Pendencias detalhadas e melhorias f
 - Limite do `RateLimitFilter` configuravel por `RATE_LIMIT_MAX_REQUESTS` (padrao `10`; `200` no E2E).
 - Job `e2e` no GitHub Actions com MySQL 8.0 + Flyway, requisito do `deploy` na VPS. Pendente: primeira execucao real no CI.
 
-## Fase Atual — Integridade Clinica e Alinhamento Backend/UI
+### 10. Integridade Clinica, Elegibilidade e Privacidade
+
+- Validacoes completas de retorno (`consultaOrigemId`): mesmo paciente, mesmo medico (com auto-atribuicao se omitido e bloqueio se inativo), `data > origem`, janela de 30 dias e liberacao de novo retorno apos cancelamento do anterior.
+- Elegibilidade de convenio no agendamento: `TipoConvenio.PLANO` exige vinculo ativo e carteirinha dentro da validade em `convenio_pacientes`; `TipoConvenio.PARTICULAR` dispensa carteirinha; reassociacao reativa vinculo inativo sem violar unicidade.
+- Disponibilidade medica: validacao de `horaInicio < horaFim` e bloqueio de intervalos sobrepostos no mesmo `diaSemana`.
+- Privacidade clinica de `ROLE_FUNCIONARIO`: bloqueio em `/prontuarios/**` (`403`) e restricao de `/medical-records` a `ROLE_MEDICO`, criacao de `GET /prescricoes/paciente/{pacienteId}` e adequacao de `Prescriptions.tsx`, `Certificates.tsx` e `FuncionarioDashboard.tsx` sem expor diagnosticos.
+- Bloqueio imediato de conta `ROLE_MEDICO` com medico inativado: `403` no login (`DisabledException`) e `401` em JWTs ativos no `SecurityFillter` (231 testes backend, 30 Vitest, 7 E2E).
+
+## Fase Atual — Alinhamento Backend/UI e Limpeza de Legados
 
 Entregas prioritarias desta fase (detalhes em `docs/BACKLOG.md`):
 
-- Validacoes de retorno, conflito de agenda e elegibilidade do convenio do paciente.
-- Conectar na UI os endpoints ja existentes (prontuario, retorno, cancelamento por `canceladoPor`, auditoria por recurso).
-- Remover artefatos legados do frontend.
+- Conectar na UI os endpoints ja existentes (detalhamento/edicao/inativacao de prontuario, retorno e `canceladoPor` em consultas, auditoria por recurso clinico).
+- Remover artefatos legados sem uso do frontend (`mockData.ts`, `Home.tsx`, `ManusDialog.tsx`, `Map.tsx`).
+- Ampliar cobertura E2E para auditoria LGPD e fluxo clinico completo.
 
 ## Proximas Fases Sugeridas
 

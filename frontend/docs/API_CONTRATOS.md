@@ -28,6 +28,9 @@ Perfis de acesso (`Role` em `src/types/auth.ts`):
 // Response 401 — credenciais inválidas (texto simples retornado por TratadorDeErros)
 "Credenciais inválidas"
 
+// Response 403 — usuário ROLE_MEDICO vinculado a médico inativado
+"Conta de usuário inativa"
+
 // Response 429 — RateLimitFilter em /auth/* (máx. 10 req/IP em 15 min)
 { erro: "Muitas tentativas. Aguarde 15 minutos antes de tentar novamente." }
 ```
@@ -319,19 +322,19 @@ Perfis de acesso (`Role` em `src/types/auth.ts`):
 { id: number, consultaId: number, nomeMedico: string, nomePaciente: string, anamnese: string, diagnostico: string, cid10?: string, observacoes?: string, dataRegistro: string }
 ```
 
-### `GET /prontuarios` (`ROLE_FUNCIONARIO` operacional / `ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
+### `GET /prontuarios` (`ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
 ```ts
-// Response 200 — Page<ProntuarioListagem> (ROLE_MEDICO vê apenas os seus)
+// Response 200 — Page<ProntuarioListagem> (ROLE_MEDICO vê apenas os seus; ROLE_FUNCIONARIO recebe 403)
 { content: Array<{ id: number, consultaId: number, nomePaciente: string, diagnostico: string, dataRegistro: string }>, ... }
 ```
 
-### `GET /prontuarios/{id}` (`ROLE_FUNCIONARIO` operacional / `ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
+### `GET /prontuarios/{id}` (`ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
 ```ts
 // Disponível em prontuariosApi.get(id), ainda sem modal de detalhamento em MedicalRecords.tsx.
 // Response 200 — ProntuarioDetalhamento
 ```
 
-### `GET /prontuarios/paciente/{pacienteId}` (`ROLE_FUNCIONARIO` operacional / `ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
+### `GET /prontuarios/paciente/{pacienteId}` (`ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
 ```ts
 // Response 200 — Page<ProntuarioListagem>
 ```
@@ -372,6 +375,13 @@ Perfis de acesso (`Role` em `src/types/auth.ts`):
 
 ### `GET /prescricoes/prontuario/{prontuarioId}` (`ROLE_FUNCIONARIO` operacional / `ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
 ```ts
+// Response 200 — Page<PrescricaoListagem>
+```
+
+### `GET /prescricoes/paciente/{pacienteId}` (`ROLE_FUNCIONARIO` operacional / `ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
+```ts
+// Consumido por prescricoesApi.listByPaciente(pacienteId, page, size) em Prescriptions.tsx sem expor prontuário/diagnóstico.
+// ROLE_MEDICO recebe apenas as prescrições que emitiu.
 // Response 200 — Page<PrescricaoListagem>
 ```
 
@@ -521,8 +531,8 @@ Utilitário principal: `extractApiError(err, fallback)` em `src/lib/utils.ts` + 
 | Status | Formato retornado pelo Backend | Comportamento no Frontend |
 |--------|--------------------------------|---------------------------|
 | `400` | `[{ campo, mensagem }]` (`@Valid`) ou `{ campo, mensagem }` (`ValidacaoException` / JSON / CEP) | `extractApiError` concatena os campos ou extrai `mensagem` para exibir em toast/formulário |
-| `401` | `"Credenciais inválidas"` no login; `{ erro: "Token inválido..." }` no filtro | No login exibe mensagem de credenciais; nas demais rotas limpa `localStorage` e redireciona para `/login` |
-| `403` | `"Acesso negado"` (texto simples) | Exibe mensagem/toast de falta de permissão |
+| `401` | `"Credenciais inválidas"` no login; `{ erro: "Token inválido..." }` ou `{ erro: "Conta de usuário inativa" }` no filtro | No login exibe mensagem de credenciais; nas demais rotas limpa `localStorage` e redireciona para `/login` |
+| `403` | `"Acesso negado"` ou `"Conta de usuário inativa"` (texto simples) | No login exibe a mensagem da API (ex.: `"Conta de usuário inativa"`); nas demais rotas exibe toast de falta de permissão |
 | `404` | Vazio (`EntityNotFoundException`) ou `{ campo: "cep", mensagem }` | Tratado inline ou via fallback do `extractApiError` |
 | `409` | `{ campo: "conflito", mensagem }` | `extractApiError` exibe a mensagem específica do conflito |
 | `422` | Regra temporal clínica (ex.: janela de 24h do prontuário) | Exibe mensagem da API via toast |

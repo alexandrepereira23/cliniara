@@ -71,6 +71,9 @@ public class Usuario implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return UserDetails.super.isEnabled();
+        if (this.role == Perfil.ROLE_MEDICO && this.medico != null && !this.medico.isAtivo()) {
+            return false;
+        }
+        return true;
     }
 }

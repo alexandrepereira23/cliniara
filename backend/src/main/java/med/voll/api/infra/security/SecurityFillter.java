@@ -50,6 +50,14 @@ public class SecurityFillter extends OncePerRequestFilter {
                     return;
                 }
 
+                if (!usuario.isEnabled()) {
+                    SecurityContextHolder.clearContext();
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+                    response.getWriter().write("{\"erro\":\"Conta de usuário inativa\"}");
+                    return;
+                }
+
                 var authentication = new UsernamePasswordAuthenticationToken(usuario, null, usuario.getAuthorities());
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 

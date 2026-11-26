@@ -8,10 +8,6 @@ Este arquivo centraliza melhorias futuras, correcoes tecnicas mapeadas, pendenci
 
 ### Correcoes Tecnicas de Integridade (Backend & Frontend)
 
-- **Validacoes clinicas da agenda e retorno (`AgendaDeConsultas`):**
-  - Validar no retorno (`consultaOrigemId`) se o paciente e o mesmo da consulta original, se a data do retorno e posterior a consulta de origem e permitir novo retorno caso o anterior tenha sido cancelado.
-  - Validar no agendamento com `convenioId` se o paciente possui vinculo ativo e carteirinha dentro da validade (`convenio_pacientes`).
-  - Validar `horaInicio < horaFim` e impedir sobreposicao de intervalos no cadastro de disponibilidade medica.
 - **Limpeza de codigo legado no frontend:** remover artefatos de template nao importados pelas rotas ativas (`frontend/src/lib/mockData.ts`, `frontend/src/pages/Home.tsx`, `frontend/src/components/ManusDialog.tsx` e `frontend/src/components/Map.tsx`).
 
 ### Alinhamento de Funcionalidades Backend -> Frontend
@@ -40,16 +36,9 @@ Implementar e validar estados adicionais da consulta com trilha de quem alterou 
 - Paciente ausente.
 - Reagendada (com vinculo historico entre agendamentos).
 
-### Acesso de Funcionarios a Dados Clinicos
+### Consultas Futuras de Medico Inativado
 
-Definir decisao final sobre `ROLE_FUNCIONARIO` em dados sensiveis:
-
-- Prontuarios, prescricoes e atestados.
-- Criacao de visao resumida operacional sem conteudo clinico sensivel (ex.: sem diagnostico/anamnese para recepcao).
-
-### Politica de Usuario Medico com Medico Inativado
-
-Definir se usuario `ROLE_MEDICO` deve continuar autenticando quando o medico vinculado for inativado (bloquear login, bloquear apenas acoes assistenciais ou exigir reativacao/desvinculo formal), tratando tambem o destino das consultas futuras do medico inativado.
+O bloqueio imediato de login (`403`) e de JWT ativo (`401`) para `ROLE_MEDICO` inativado ja esta implementado. Permanece pendente definir o tratamento operacional para consultas futuras ja agendadas quando um medico e inativado (cancelamento em lote, aviso ou bloqueio da inativacao).
 
 ## Prioridade Media
 
@@ -116,3 +105,6 @@ Definir se usuario `ROLE_MEDICO` deve continuar autenticando quando o medico vin
 - Persistencia transacional (`@Transactional` + `save()`) em `DisponibilidadeMedicoController` e `MedicoConvenioController`, validada com teste de integracao em banco H2.
 - `@ParameterObject` aplicado em todos os parametros `Pageable` dos controllers, protegido por teste reflexivo automatizado.
 - E2E smoke tests com Playwright (login, RBAC, cadastros com CEP, disponibilidade, agendamento e vinculo de usuario medico), integrados ao CI como gate do deploy.
+- Integridade clinica da agenda e disponibilidade: regras completas de retorno (`consultaOrigemId` com mesmo paciente, mesmo medico/auto-atribuicao, `data > origem`, limite de 30 dias e novo retorno apos cancelamento), elegibilidade de convenio `PLANO` (vinculo ativo e validade da carteirinha) vs `PARTICULAR`, reativacao de vinculo `convenio_pacientes` sem violar unicidade, e validacao de `horaInicio < horaFim` e nao sobreposicao de horarios de disponibilidade.
+- Privacidade clinica para `ROLE_FUNCIONARIO`: bloqueio de leitura em `/prontuarios/**` (`403`) e restricao de `/medical-records` a `ROLE_MEDICO`, criacao de `GET /prescricoes/paciente/{pacienteId}` e adaptacao de `Prescriptions.tsx`, `Certificates.tsx` e `FuncionarioDashboard.tsx` sem expor diagnosticos.
+- Bloqueio imediato de conta `ROLE_MEDICO` com medico inativado: `403` no login (`DisabledException`) e `401` imediato em JWTs ja emitidos no `SecurityFillter`.

@@ -42,4 +42,10 @@ public class ConvenioPaciente {
     public void inativar() {
         this.ativo = false;
     }
+
+    public void reativar(DadosCadastroConvenioPaciente dados) {
+        this.numeroCarteirinha = dados.numeroCarteirinha();
+        this.validade = dados.validade();
+        this.ativo = true;
+    }
 }

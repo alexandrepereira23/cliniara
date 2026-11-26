@@ -12,4 +12,7 @@ public interface DisponibilidadeMedicoRepository extends JpaRepository<Disponibi
 
     boolean existsByMedicoIdAndDiaSemanaAndHoraInicioLessThanEqualAndHoraFimGreaterThanAndAtivoTrue(
             Long medicoId, DayOfWeek diaSemana, LocalTime horaInicio, LocalTime horaFim);
+
+    boolean existsByMedicoIdAndDiaSemanaAndAtivoTrueAndHoraInicioLessThanAndHoraFimGreaterThan(
+            Long medicoId, DayOfWeek diaSemana, LocalTime horaFim, LocalTime horaInicio);
 }

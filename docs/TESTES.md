@@ -6,8 +6,8 @@ Este documento registra a estrategia de testes, comandos de validacao e pendenci
 
 Validado nesta revisao documental:
 
-- Backend: **206 testes passando** com `./mvnw test` em `backend/`.
-- Frontend: **29 testes passando** com `npm test` em `frontend/`.
+- Backend: **231 testes passando** com `./mvnw test` em `backend/`.
+- Frontend: **30 testes passando** com `npm test` em `frontend/`.
 - Frontend audit: **0 vulnerabilidades** reportadas em `npm audit` (corrigido com seguranca via `npm audit fix`).
 - E2E (Playwright + Chromium): **7 testes passando** com `npm run test:e2e` em `frontend/` (validado localmente no modo H2; o modo MySQL + Flyway roda no CI).
 - CI/CD (`.github/workflows/deploy.yml`): o job `test` executa `./mvnw --batch-mode test`, `npm test`, `npm run check` e `npm run build`; o job `e2e` (MySQL 8.0 real + Flyway `V1`–`V25`) executa `npm run test:e2e`. O `deploy` na VPS depende dos dois (`needs: [test, e2e]`).
@@ -95,13 +95,13 @@ Usam JUnit 5 e Mockito para validar regras de negocio sem subir o contexto web c
 | Classe | Testes | Cobertura principal |
 |---|---:|---|
 | `ApiApplicationTests` | 1 | Inicializacao do contexto Spring Boot com H2 |
-| `AgendaDeConsultasTest` | 17 | Agendamento, cancelamento, prioridade, retorno, disponibilidade e convenio |
+| `AgendaDeConsultasTest` | 27 | Agendamento, cancelamento, prioridade, retorno (mesmo paciente/medico, data/30d, reemissao), disponibilidade e elegibilidade de convenio (`PLANO`/`PARTICULAR`) |
 | `ProntuarioServiceTest` | 7 | Criacao, ownership, janela de edicao e erros de prontuario |
 | `EspecialidadeServiceTest` | 8 | CRUD, duplicidade e inativacao |
 | `UsuarioServiceTest` | 11 | Cadastro de usuarios, vinculo medico e conflitos |
 | `IaServiceTest` | 6 | Chamadas mockadas para IA e regras de contexto medico |
 | `AuditoriaProntuarioAspectTest` | 2 | Auditoria AOP para recursos clinicos |
-| `SecurityFillterTest` | 3 | Token JWT e preenchimento do `SecurityContext` |
+| `SecurityFillterTest` | 4 | Token JWT, bloqueio imediato de medico inativo (`401`) e preenchimento do `SecurityContext` |
 | `ConsultaCepServiceTest` | 10 | Validacao, normalizacao e erros de CEP |
 | `RestClientCepClientTest` | 7 | Integracao backend-to-backend com API de CEP |
 
@@ -113,18 +113,18 @@ Validam rotas, serializacao, status HTTP e autorizacao por `@PreAuthorize`.
 |---|---:|---|
 | `AtestadoControllerTest` | 10 | Emissao/listagem/detalhamento e permissoes |
 | `AuditoriaControllerTest` | 4 | Auditoria LGPD restrita a auditor/gestor |
-| `AutenticacaoControllerTest` | 16 | Login, cadastro/listagem de usuarios, medicos disponiveis e verificacao reflexiva de `@ParameterObject` |
+| `AutenticacaoControllerTest` | 17 | Login (incluindo `403` para conta inativa), cadastro/listagem de usuarios, medicos disponiveis e verificacao reflexiva de `@ParameterObject` |
 | `ConsultaControllerTest` | 7 | Agendar, listar e cancelar consultas por role |
 | `ConvenioControllerTest` | 10 | CRUD de convenios e RBAC |
 | `ConvenioPacienteControllerTest` | 6 | Vinculo de convenio ao paciente |
-| `DisponibilidadeMedicoControllerTest` | 6 | Disponibilidade medica, permissoes e persistencia na inativacao |
+| `DisponibilidadeMedicoControllerTest` | 9 | Disponibilidade medica, validacao de intervalo/sobreposicao, permissoes e persistencia na inativacao |
 | `EnderecoControllerTest` | 8 | `GET /enderecos/cep/{cep}` e permissoes |
 | `EspecialidadeControllerTest` | 10 | CRUD de especialidades e permissoes |
 | `MedicoControllerTest` | 8 | CRUD de medicos e restricoes por role |
 | `MedicoConvenioControllerTest` | 6 | Convenios aceitos pelo medico, desvinculo e erro 404 padronizado |
 | `PacientesControllerTest` | 10 | CRUD/listagem filtrada de pacientes |
-| `PrescricaoControllerTest` | 10 | Criacao, detalhamento/listagem e permissoes |
-| `ProntuarioControllerTest` | 21 | Criacao, listagem, edicao, inativacao, permissoes e mapeamento de `ResponseStatusException` (403/404/409/422) |
+| `PrescricaoControllerTest` | 15 | Criacao, detalhamento, listagem por prontuario e por paciente (`GET /prescricoes/paciente/{pacienteId}`) e permissoes |
+| `ProntuarioControllerTest` | 24 | Criacao, listagem, edicao, inativacao, bloqueio de `ROLE_FUNCIONARIO` (`403`) e mapeamento de `ResponseStatusException` (403/404/409/422) |
 
 ## Estrategia de Testes Frontend
 
@@ -138,7 +138,7 @@ Arquivos atuais de teste:
 | `frontend/src/components/dashboard/FuncionarioDashboard.test.tsx` | 6 | Dashboard, agenda do dia, loading, erro e retry |
 | `frontend/src/pages/Doctors.cep.test.tsx` | 3 | Busca de CEP no cadastro de medico |
 | `frontend/src/pages/Patients.cep.test.tsx` | 2 | Busca de CEP e payload sanitizado no cadastro de paciente |
-| `frontend/src/pages/Login.test.tsx` | 2 | Token invalido e erro de login |
+| `frontend/src/pages/Login.test.tsx` | 3 | Token invalido, erro 401 de credenciais e 403 de conta inativa |
 | `frontend/src/pages/Users.test.tsx` | 6 | Cadastro de usuarios e seletor de medicos disponiveis |
 
 ## Configuracoes de Teste
@@ -167,7 +167,7 @@ Flyway fica desabilitado nos testes porque algumas migrations usam sintaxe espec
 
 | Classe | Testes | Cobertura principal |
 |---|---:|---|
-| `ExclusaoLogicaPersistenciaIntegrationTest` | 2 | Persistencia real (`@SpringBootTest` + H2) de `ativo = false` em `DELETE /medicos/{id}/disponibilidade/{dispId}` e `DELETE /medicos/{id}/convenios/{convenioId}` |
+| `ExclusaoLogicaPersistenciaIntegrationTest` | 4 | Persistencia real (`@SpringBootTest` + H2) de exclusao logica em disponibilidade e medico-convenio, bloqueio imediato (`401`/`403`) apos inativacao de medico e reativacao de vinculo `convenio_pacientes` sem violar unicidade |
 
 A suite atual usa H2 para contexto Spring e mocks para clientes externos. A integracao CEP possui testes unitarios/service/client, mas nao sobe um servidor real do `Consultar-Cep`. O lock pessimista do vinculo medico-usuario tambem esta coberto por teste unitario, nao por uma corrida real em MySQL.
 

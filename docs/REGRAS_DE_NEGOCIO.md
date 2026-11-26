@@ -21,19 +21,21 @@ Este documento centraliza todas as regras de negócio implementadas na API, serv
 | 9 | Se não houver médico disponível, agendamento é recusado | 400 — Nenhum médico disponível |
 | 10 | Campo `prioridade` é opcional — omitido equivale a `ROTINA` | — |
 | 11 | Se `convenioId` for informado, o convênio deve existir, estar ativo e ser aceito pelo médico da consulta | 400 — Convênio não encontrado / inativo / médico não aceita |
-
-> **Observação de escopo atual:** o agendamento com `convenioId` valida o cadastro do convênio e o vínculo com o médico (`medico_convenios`), mas ainda não valida o vínculo ativo nem a validade da carteirinha do paciente (`convenio_pacientes`). Evolução prevista em `docs/BACKLOG.md`.
+| 12 | Para convênio `TipoConvenio.PLANO`, o paciente deve possuir vínculo ativo (`convenio_pacientes`) e carteirinha não vencida na data da consulta (`validade == null` ou `validade >= dataConsulta`) | 400 — Sem vínculo ativo / carteirinha vencida |
+| 13 | Para convênio `TipoConvenio.PARTICULAR`, não é exigido vínculo de carteirinha em `convenio_pacientes` | — |
 
 ### Retorno de Consulta
 
 | # | Regra | Erro |
 |---|-------|------|
 | 1 | Informar `consultaOrigemId` no agendamento para criar um retorno | 400 — Consulta de origem não encontrada |
-| 2 | Consulta de origem deve existir e estar ativa | 400 |
-| 3 | Retorno deve ocorrer em até 30 dias após a consulta original | 400 |
-| 4 | Cada consulta pode ter no máximo um retorno | 400 |
-| 5 | Retorno não consome a cota diária do paciente (ignora regra de uma consulta por dia) | — |
-| 6 | Campo `tipo` na resposta indica `NORMAL` ou `RETORNO`; `consultaOrigemId` indica o vínculo | — |
+| 2 | Consulta de origem deve existir e estar ativa | 400 — Consulta de origem cancelada |
+| 3 | Retorno deve pertencer ao mesmo paciente da consulta original | 400 — Mesmo paciente obrigatório |
+| 4 | Data/hora do retorno deve ser estritamente posterior à consulta original e ocorrer em até 30 dias | 400 — Data anterior/igual ou prazo de 30 dias excedido |
+| 5 | Cada consulta pode ter no máximo um retorno **ativo**; se um retorno anterior foi cancelado, é permitido agendar novo retorno | 400 — Já existe retorno ativo |
+| 6 | Retorno deve ser agendado com o **mesmo médico** da consulta original; se `idMedico` for omitido, o sistema assume automaticamente o médico original (desde que ativo) | 400 — Médico diferente ou médico original inativo |
+| 7 | Retorno não consome a cota diária do paciente (ignora regra de uma consulta por dia) | — |
+| 8 | Campo `tipo` na resposta indica `NORMAL` ou `RETORNO`; `consultaOrigemId` indica o vínculo | — |
 
 ### Cancelamento (`AgendaDeConsultas.cancelar`)
 
@@ -50,9 +52,11 @@ Este documento centraliza todas as regras de negócio implementadas na API, serv
 | # | Regra |
 |---|-------|
 | 1 | Médico deve estar ativo para ter disponibilidade cadastrada |
-| 2 | Exclusão é lógica (campo `ativo = false`) |
-| 3 | Ao agendar com médico explícito, o horário deve estar dentro de um intervalo ativo de disponibilidade |
-| 4 | Ao buscar médico aleatório, apenas médicos com disponibilidade real no horário são considerados |
+| 2 | `horaInicio` deve ser estritamente anterior a `horaFim` (`400` caso contrário) |
+| 3 | Não é permitido cadastrar intervalo ativo sobreposto a outro intervalo ativo do mesmo médico no mesmo `diaSemana` (`400`) |
+| 4 | Exclusão é lógica (campo `ativo = false`) |
+| 5 | Ao agendar com médico explícito, o horário deve estar dentro de um intervalo ativo de disponibilidade |
+| 6 | Ao buscar médico aleatório, apenas médicos com disponibilidade real no horário são considerados |
 
 ---
 
@@ -77,12 +81,10 @@ Este documento centraliza todas as regras de negócio implementadas na API, serv
 | 4 | Apenas o médico que criou pode editar o prontuário | 403 |
 | 5 | Edição permitida somente dentro de 24h após o registro | 422 — Janela de edição expirada |
 | 6 | `ROLE_MEDICO` acessa apenas prontuários de suas próprias consultas | 403 |
-| 7 | `ROLE_FUNCIONARIO` tem acesso operacional de leitura a prontuários quando necessário ao fluxo da clínica | — |
+| 7 | `ROLE_FUNCIONARIO` não tem acesso a prontuários (sigilo clínico de anamnese, diagnóstico e CID-10) | 403 |
 | 8 | `ROLE_ADMIN` não acessa conteúdo clínico por padrão; acesso administrativo não implica acesso assistencial | 403 |
 | 9 | Leitura clínica ampla, quando necessária para auditoria/gestão, deve usar perfil específico (`ROLE_AUDITOR` ou `ROLE_GESTOR`) e ser auditada para prontuários, prescrições e atestados | — |
 | 10 | Exclusão/inativação administrativa de prontuário deve ser restrita a perfil com responsabilidade formal (`ROLE_AUDITOR` ou `ROLE_GESTOR`), não ao admin técnico | — |
-
-> Atenção: a leitura operacional de prontuários por `ROLE_FUNCIONARIO` é uma permissão sensível e deve ser revisada em uma fase futura de privacidade clínica e mínimo acesso necessário.
 
 ---
 
@@ -93,12 +95,10 @@ Este documento centraliza todas as regras de negócio implementadas na API, serv
 | 1 | Prontuário referenciado deve existir e estar ativo | 404 |
 | 2 | Apenas o médico responsável pelo prontuário pode criar prescrições | 403 |
 | 3 | `ROLE_MEDICO` acessa apenas prescrições de seus próprios prontuários | 403 |
-| 4 | `ROLE_FUNCIONARIO` tem acesso operacional de leitura quando necessário; `ROLE_ADMIN` não acessa prescrições por padrão | — |
+| 4 | `ROLE_FUNCIONARIO` mantém leitura operacional de prescrições (inclusive via `GET /prescricoes/paciente/{pacienteId}` sem expor diagnóstico do prontuário); `ROLE_ADMIN` não acessa prescrições | 403 |
 | 5 | Leitura ampla de prescrições deve usar `ROLE_AUDITOR` ou `ROLE_GESTOR`, com trilha de auditoria por recurso clínico | — |
 | 6 | Receita `SIMPLES` tem validade de 30 dias; `ESPECIAL` de 60 dias (calculado automaticamente) | — |
 | 7 | Toda prescrição deve ter ao menos um item | 400 |
-
-> Atenção: a leitura operacional de prescrições por `ROLE_FUNCIONARIO` é uma permissão sensível e deve ser revisada em uma fase futura de privacidade clínica e mínimo acesso necessário.
 
 ---
 
@@ -109,13 +109,11 @@ Este documento centraliza todas as regras de negócio implementadas na API, serv
 | 1 | Prontuário referenciado deve existir e estar ativo | 404 |
 | 2 | Apenas o médico responsável pelo prontuário pode emitir atestados | 403 |
 | 3 | `ROLE_MEDICO` acessa apenas atestados vinculados aos seus prontuários | 403 |
-| 4 | `ROLE_FUNCIONARIO` tem acesso operacional de leitura quando necessário; `ROLE_ADMIN` não acessa atestados por padrão | — |
+| 4 | `ROLE_FUNCIONARIO` mantém leitura operacional de atestados (via `GET /atestados/paciente/{pacienteId}` sem precisar consultar prontuários); `ROLE_ADMIN` não acessa atestados | 403 |
 | 5 | Leitura ampla de atestados deve usar `ROLE_AUDITOR` ou `ROLE_GESTOR`, com trilha de auditoria por recurso clínico | — |
 | 6 | `diasAfastamento` deve ser no mínimo 1 | 400 |
 | 7 | `cid10` e `observacoes` são opcionais | — |
 | 8 | `dataEmissao` é preenchida automaticamente com a data atual | — |
-
-> Atenção: a leitura operacional de atestados por `ROLE_FUNCIONARIO` é uma permissão sensível e deve ser revisada em uma fase futura de privacidade clínica e mínimo acesso necessário.
 
 ---
 
@@ -161,6 +159,8 @@ Este documento centraliza todas as regras de negócio implementadas na API, serv
 | 13 | O vínculo médico↔usuário usa bloqueio pessimista (`SELECT ... FOR UPDATE`) na linha do médico para impedir que duas requisições concorrentes vinculem o mesmo médico a usuários diferentes |
 | 14 | Criação do usuário e vínculo do médico ocorrem na mesma transação (`UsuarioService.cadastrar`); falha em qualquer etapa reverte ambas |
 | 15 | Credenciais inválidas em `POST /auth/login` retornam `401 Unauthorized` (`"Credenciais inválidas"`); tokens ausentes/expirados retornam `401`/`403` |
+| 16 | Se o médico vinculado a um usuário `ROLE_MEDICO` for inativado (`ativo = false`), novos logins em `POST /auth/login` são bloqueados com `403 Forbidden` (`"Conta de usuário inativa"`) e tokens JWT já emitidos são rejeitados imediatamente pelo `SecurityFillter` com `401 Unauthorized` (`{"erro":"Conta de usuário inativa"}`) |
+| 17 | Ao reassociar um convênio previamente removido de um paciente (`POST /pacientes/{pacienteId}/convenios`), o vínculo inativo existente é reativado com os novos dados de carteirinha/validade, preservando a unicidade `(paciente_id, convenio_id)` |
 
 ---
 
@@ -213,13 +213,14 @@ Modelo profissional recomendado:
 | `DELETE /medicos/{id}/disponibilidade/{dispId}` | — | ✅ | — | — |
 | `POST /prontuarios` | — | — | ✅ (da sua consulta) | — |
 | `PUT /prontuarios` | — | — | ✅ (seu, em 24h) | — |
-| `GET /prontuarios` | — | ✅ (leitura operacional) | ✅ (apenas os seus) | ✅ |
-| `GET /prontuarios/{id}` | — | ✅ (leitura operacional) | ✅ (apenas os seus) | ✅ |
-| `GET /prontuarios/paciente/{id}` | — | ✅ (leitura operacional) | ✅ (apenas os seus) | ✅ |
+| `GET /prontuarios` | — | — | ✅ (apenas os seus) | ✅ |
+| `GET /prontuarios/{id}` | — | — | ✅ (apenas os seus) | ✅ |
+| `GET /prontuarios/paciente/{id}` | — | — | ✅ (apenas os seus) | ✅ |
 | `DELETE /prontuarios/{id}` | — | — | — | ✅ |
 | `POST /prescricoes` | — | — | ✅ (do seu prontuário) | — |
 | `GET /prescricoes/{id}` | — | ✅ (leitura operacional) | ✅ (apenas os seus) | ✅ |
 | `GET /prescricoes/prontuario/{id}` | — | ✅ (leitura operacional) | ✅ (apenas os seus) | ✅ |
+| `GET /prescricoes/paciente/{id}` | — | ✅ (leitura operacional) | ✅ (apenas as suas) | ✅ |
 | `POST /atestados` | — | — | ✅ (do seu prontuário) | — |
 | `GET /atestados/{id}` | — | ✅ (leitura operacional) | ✅ (apenas os seus) | ✅ |
 | `GET /atestados/paciente/{id}` | — | ✅ (leitura operacional) | ✅ (apenas os seus) | ✅ |
@@ -230,14 +231,10 @@ Modelo profissional recomendado:
 | `GET /auditoria/prontuarios/{prontuarioId}` | — | — | — | ✅ |
 | `GET /auditoria/{recursoTipo}/{recursoId}` | — | — | — | ✅ |
 
-## Pendência de Privacidade Clínica
+## Política de Privacidade Clínica
 
-A matriz atual mantém `ROLE_FUNCIONARIO` com leitura operacional de prontuários, prescrições e atestados por compatibilidade com o fluxo documentado da clínica. Essa decisão deve ser reavaliada em uma fase futura específica de privacidade clínica e mínimo acesso necessário.
+A política vigente separa sigilo assistencial de suporte operacional da recepção:
 
-Essa fase deve definir, implementar e testar se `ROLE_FUNCIONARIO` pode:
-
-- Ver prontuário completo.
-- Ver apenas resumo operacional sem conteúdo clínico sensível.
-- Não ver conteúdo clínico.
-- Acessar prescrições e atestados.
-- Gerar auditoria ao visualizar dados sensíveis.
+- **`ROLE_FUNCIONARIO` não acessa prontuários:** os endpoints `GET /prontuarios`, `GET /prontuarios/{id}` e `GET /prontuarios/paciente/{id}` retornam `403 Forbidden`, e a rota `/medical-records` fica restrita a `ROLE_MEDICO` no frontend.
+- **`ROLE_FUNCIONARIO` mantém suporte operacional a receitas e atestados:** consulta prescrições diretamente por paciente via `GET /prescricoes/paciente/{pacienteId}` e atestados via `GET /atestados/paciente/{pacienteId}`, sem acessar nem exibir anamnese ou diagnóstico do prontuário, com trilha de auditoria LGPD automática.
+- **`ROLE_AUDITOR` e `ROLE_GESTOR`** concentram a leitura clínica ampla e a inativação administrativa de prontuários, com auditoria registrada.

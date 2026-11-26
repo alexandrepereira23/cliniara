@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -62,6 +63,11 @@ public class TratadorDeErros {
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<String> tratarErroBadCredentials() {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciais inválidas");
+    }
+
+    @ExceptionHandler(DisabledException.class)
+    public ResponseEntity<String> tratarErroUsuarioInativo() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Conta de usuário inativa");
     }
 
     @ExceptionHandler(AuthenticationException.class)

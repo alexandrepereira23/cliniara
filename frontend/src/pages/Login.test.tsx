@@ -49,4 +49,22 @@ describe('Login', () => {
     expect(login).toHaveBeenCalledTimes(1)
     expect(window.location.pathname).toBe('/login')
   })
+
+  it('exibe mensagem de conta inativa para 403 do /auth/login', async () => {
+    const user = userEvent.setup()
+    const login = vi.fn().mockRejectedValue({
+      response: { status: 403, data: 'Conta de usuário inativa' },
+    })
+    window.history.pushState({}, '', '/login')
+
+    renderLogin(login)
+
+    await user.type(screen.getByLabelText('Login'), 'medico.inativo@vollmed.com')
+    await user.type(screen.getByLabelText('Senha'), 'senha123')
+    await user.click(screen.getByRole('button', { name: 'Entrar' }))
+
+    expect(await screen.findByText('Conta de usuário inativa')).toBeInTheDocument()
+    expect(login).toHaveBeenCalledTimes(1)
+    expect(window.location.pathname).toBe('/login')
+  })
 })

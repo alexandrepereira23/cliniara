@@ -17,7 +17,7 @@ cd backend && ./mvnw spring-boot:run
 # Build completo do backend (usar após mudanças em @Value ou configuração)
 cd backend && ./mvnw clean package
 
-# Rodar todos os testes do backend (206 testes)
+# Rodar todos os testes do backend (231 testes)
 cd backend && ./mvnw test
 
 # Rodar uma classe de teste específica no backend
@@ -86,8 +86,8 @@ public FilterRegistrationBean<SecurityFillter> securityFillterRegistration(Secur
 ### Perfis de usuário
 
 - `ROLE_ADMIN` — administração técnica e usuários via `POST /auth/cadastro`, `GET /auth/usuarios`, `GET /auth/medicos-disponiveis` e `GET /enderecos/cep/{cep}`; não acessa dados clínicos nem cadastros operacionais por padrão, inclusive `GET /medicos`
-- `ROLE_FUNCIONARIO` — operação da clínica, cadastros, agenda, convênios, consulta de CEP e leitura operacional necessária
-- `ROLE_MEDICO` — atendimento clínico; vê apenas dados assistenciais vinculados ao médico logado e acessa IA clínica (`/ia/*`)
+- `ROLE_FUNCIONARIO` — operação da clínica, cadastros, agenda, convênios, consulta de CEP e leitura operacional de prescrições (`GET /prescricoes/paciente/{pacienteId}`) e atestados; sem acesso a prontuários (`/prontuarios/**` retorna `403`)
+- `ROLE_MEDICO` — atendimento clínico; vê apenas dados assistenciais vinculados ao médico logado e acessa IA clínica (`/ia/*`); se o médico for inativado, login retorna `403` e JWTs ativos retornam `401` imediatamente
 - `ROLE_AUDITOR` / `ROLE_GESTOR` — leitura ampla, inativação administrativa de prontuário e auditoria LGPD (`/auditoria/**`), sempre com rastreabilidade
 
 ### Admin inicial (AdminInitializer)
@@ -105,9 +105,9 @@ Ao iniciar, `AdminInitializer` (implementa `ApplicationRunner`) verifica se exis
 
 - Clínica funciona Seg–Sáb, 07h–19h
 - Antecedência mínima de agendamento conforme prioridade: `ROTINA` (30 min, padrão), `PRIORITARIO` (10 min), `URGENCIA` (sem restrição); cancelamento exige mínimo de 24h
-- Paciente não pode ter duas consultas normais no mesmo dia (retorno via `consultaOrigemId` até 30 dias ignora a cota diária, limitado a 1 retorno por consulta)
-- Médico pode ser omitido — sistema escolhe aleatoriamente um médico ativo com disponibilidade real cadastrada e livre no horário
-- Quando `convenioId` é informado, valida existência/atividade do convênio e aceite pelo médico
+- Paciente não pode ter duas consultas normais no mesmo dia (retorno via `consultaOrigemId` ignora a cota diária; exige mesmo paciente, mesmo médico — auto-atribuído se omitido —, data estritamente posterior até 30 dias e no máximo 1 retorno ativo por consulta)
+- Médico pode ser omitido (em consultas normais) — sistema escolhe aleatoriamente um médico ativo com disponibilidade real cadastrada e livre no horário; disponibilidade exige `horaInicio < horaFim` e sem sobreposição ativa no mesmo `diaSemana`
+- Quando `convenioId` é informado, valida existência/atividade do convênio, aceite pelo médico e, para `TipoConvenio.PLANO`, vínculo ativo e validade da carteirinha do paciente (`TipoConvenio.PARTICULAR` não exige carteirinha)
 
 ## Frontend
 
@@ -121,7 +121,7 @@ Monorepo — frontend SPA em `frontend/`.
 - **wouter** — roteamento client-side leve
 - Axios (client HTTP com interceptor JWT em `src/api/axios.ts` e base default `/api`)
 - React Hook Form + Zod v4, framer-motion, recharts, sonner, Lucide React
-- Vitest + Testing Library (29 testes automatizados)
+- Vitest + Testing Library (30 testes automatizados)
 
 ### Comandos
 
@@ -134,7 +134,7 @@ npm install
 # Dev server (http://localhost:5173 — proxy /api -> http://localhost:8080)
 npm run dev
 
-# Executar testes automatizados (29 testes)
+# Executar testes automatizados (30 testes)
 npm test
 
 # Testes E2E com Playwright (7 testes; sobe backend e frontend sozinho, ver docs/TESTES.md)
@@ -183,7 +183,7 @@ frontend/src/
 | `/doctors` | `Doctors` | `NonAdminRoute` |
 | `/patients` | `Patients` | `NonAdminRoute` |
 | `/appointments` | `Appointments` | `NonAdminRoute` |
-| `/medical-records` | `MedicalRecords` | `NonAdminRoute` |
+| `/medical-records` | `MedicalRecords` | `MedicoRoute` (`ROLE_MEDICO`) |
 | `/prescriptions` | `Prescriptions` | `NonAdminRoute` |
 | `/certificates` | `Certificates` | `NonAdminRoute` |
 | `/specialties` | `Specialties` | `NonAdminRoute` |

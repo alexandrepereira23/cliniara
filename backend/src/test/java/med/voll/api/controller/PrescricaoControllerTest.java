@@ -171,6 +171,58 @@ class PrescricaoControllerTest {
     }
 
     @Test
+    @DisplayName("ROLE_FUNCIONARIO deve listar prescrições por paciente e receber 200")
+    void deveListarPrescricoesPorPacienteComFuncionario() throws Exception {
+        when(prescricaoService.listarPorPaciente(anyLong(), any(Pageable.class), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        mvc.perform(get("/prescricoes/paciente/1")
+                        .with(user(usuarioFuncionario())))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("ROLE_MEDICO deve listar prescrições por paciente e receber 200")
+    void deveListarPrescricoesPorPacienteComMedico() throws Exception {
+        when(prescricaoService.listarPorPaciente(anyLong(), any(Pageable.class), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        mvc.perform(get("/prescricoes/paciente/1")
+                        .with(user(usuarioMedico())))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("ROLE_AUDITOR deve listar prescrições por paciente e receber 200")
+    void deveListarPrescricoesPorPacienteComAuditor() throws Exception {
+        when(prescricaoService.listarPorPaciente(anyLong(), any(Pageable.class), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        mvc.perform(get("/prescricoes/paciente/1")
+                        .with(user(usuarioAuditor())))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("ROLE_GESTOR deve listar prescrições por paciente e receber 200")
+    void deveListarPrescricoesPorPacienteComGestor() throws Exception {
+        when(prescricaoService.listarPorPaciente(anyLong(), any(Pageable.class), any()))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        mvc.perform(get("/prescricoes/paciente/1")
+                        .with(user(usuarioGestor())))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("ROLE_ADMIN não deve listar prescrições por paciente — deve receber 403")
+    void naoDeveListarPrescricoesPorPacienteComAdmin() throws Exception {
+        mvc.perform(get("/prescricoes/paciente/1")
+                        .with(user(usuarioAdmin())))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("deve rejeitar requisição não autenticada com 401")
     void deveRejeitarRequisicaoNaoAutenticada() throws Exception {
         mvc.perform(get("/prescricoes/1"))
