@@ -1,0 +1,88 @@
+package com.cliniara.api.controller;
+
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import com.cliniara.api.domain.medico.*;
+import com.cliniara.api.exception.ValidacaoException;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.util.UriComponentsBuilder;
+
+import java.util.List;
+import java.util.Objects;
+
+@RestController
+@RequestMapping("medicos/{medicoId}/disponibilidade")
+@Tag(name = "Disponibilidade", description = "Endpoints para gerenciamento de horários de disponibilidade dos médicos")
+public class DisponibilidadeMedicoController {
+
+    private final MedicoRepository medicoRepository;
+    private final DisponibilidadeMedicoRepository disponibilidadeRepository;
+
+    public DisponibilidadeMedicoController(MedicoRepository medicoRepository,
+                                           DisponibilidadeMedicoRepository disponibilidadeRepository) {
+        this.medicoRepository = medicoRepository;
+        this.disponibilidadeRepository = disponibilidadeRepository;
+    }
+
+    @PostMapping
+    @Transactional
+    @PreAuthorize("hasRole('ROLE_FUNCIONARIO')")
+    @Operation(summary = "Cadastrar disponibilidade", description = "Cadastra um horário de disponibilidade para o médico")
+    public ResponseEntity<DadosListagemDisponibilidade> cadastrar(
+            @PathVariable Long medicoId,
+            @RequestBody @Valid DadosCadastroDisponibilidade dados,
+            UriComponentsBuilder uriBuilder
+    ) {
+        var medico = medicoRepository.findById(medicoId)
+                .filter(Medico::isAtivo)
+                .orElseThrow(() -> new ValidacaoException("Médico não encontrado ou inativo"));
+
+        if (!dados.horaInicio().isBefore(dados.horaFim())) {
+            throw new ValidacaoException("Hora de início deve ser anterior à hora de fim");
+        }
+
+        if (disponibilidadeRepository
+                .existsByMedicoIdAndDiaSemanaAndAtivoTrueAndHoraInicioLessThanAndHoraFimGreaterThan(
+                        medicoId, dados.diaSemana(), dados.horaFim(), dados.horaInicio())) {
+            throw new ValidacaoException("Já existe horário de disponibilidade sobreposto para este médico neste dia");
+        }
+
+        var disponibilidade = new DisponibilidadeMedico(
+                medico, dados.diaSemana(), dados.horaInicio(), dados.horaFim());
+        disponibilidadeRepository.save(disponibilidade);
+
+        var uri = uriBuilder.path("/medicos/{medicoId}/disponibilidade/{id}")
+                .buildAndExpand(medicoId, disponibilidade.getId()).toUri();
+        return ResponseEntity.created(uri).body(new DadosListagemDisponibilidade(disponibilidade));
+    }
+
+    @GetMapping
+    @Transactional(readOnly = true)
+    @PreAuthorize("hasAnyRole('ROLE_FUNCIONARIO', 'ROLE_MEDICO', 'ROLE_AUDITOR', 'ROLE_GESTOR')")
+    @Operation(summary = "Listar disponibilidade", description = "Lista os horários de disponibilidade ativos do médico")
+    public ResponseEntity<List<DadosListagemDisponibilidade>> listar(@PathVariable Long medicoId) {
+        var lista = disponibilidadeRepository.findAllByMedicoIdAndAtivoTrue(medicoId)
+                .stream().map(DadosListagemDisponibilidade::new).toList();
+        return ResponseEntity.ok(lista);
+    }
+
+    @DeleteMapping("/{disponibilidadeId}")
+    @Transactional
+    @PreAuthorize("hasRole('ROLE_FUNCIONARIO')")
+    @Operation(summary = "Remover disponibilidade", description = "Inativa um horário de disponibilidade do médico")
+    public ResponseEntity<Void> remover(
+            @PathVariable Long medicoId,
+            @PathVariable Long disponibilidadeId
+    ) {
+        var disponibilidade = disponibilidadeRepository.findById(disponibilidadeId)
+                .filter(d -> Objects.equals(d.getMedico().getId(), medicoId) && d.isAtivo())
+                .orElseThrow(() -> new ValidacaoException("Disponibilidade não encontrada para este médico"));
+        disponibilidade.inativar();
+        disponibilidadeRepository.save(disponibilidade);
+        return ResponseEntity.noContent().build();
+    }
+}

@@ -1,0 +1,80 @@
+package com.cliniara.api.service;
+
+import com.cliniara.api.domain.convenio.ConvenioRepository;
+import com.cliniara.api.domain.paciente.*;
+import com.cliniara.api.exception.ValidacaoException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.Objects;
+
+@Service
+public class ConvenioPacienteService {
+
+    private final ConvenioPacienteRepository convenioPacienteRepository;
+    private final PacienteRepository pacienteRepository;
+    private final ConvenioRepository convenioRepository;
+
+    public ConvenioPacienteService(ConvenioPacienteRepository convenioPacienteRepository,
+                                   PacienteRepository pacienteRepository,
+                                   ConvenioRepository convenioRepository) {
+        this.convenioPacienteRepository = convenioPacienteRepository;
+        this.pacienteRepository = pacienteRepository;
+        this.convenioRepository = convenioRepository;
+    }
+
+    @Transactional
+    public DadosDetalhamentoConvenioPaciente associar(Long pacienteId, DadosCadastroConvenioPaciente dados) {
+        var paciente = pacienteRepository.findById(pacienteId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Paciente não encontrado"));
+
+        if (!paciente.isAtivo()) {
+            throw new ValidacaoException("Paciente está inativo.");
+        }
+
+        var convenio = convenioRepository.findById(dados.convenioId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Convênio não encontrado"));
+
+        if (!convenio.isAtivo()) {
+            throw new ValidacaoException("Convênio está inativo.");
+        }
+
+        var existente = convenioPacienteRepository.findByPacienteIdAndConvenioId(pacienteId, dados.convenioId());
+        if (existente.isPresent()) {
+            var vinculo = existente.get();
+            if (vinculo.isAtivo()) {
+                throw new ValidacaoException("Paciente já possui este convênio cadastrado.");
+            }
+            vinculo.reativar(dados);
+            convenioPacienteRepository.save(vinculo);
+            return new DadosDetalhamentoConvenioPaciente(vinculo);
+        }
+
+        var convenioPaciente = new ConvenioPaciente(paciente, convenio, dados);
+        convenioPacienteRepository.save(convenioPaciente);
+        return new DadosDetalhamentoConvenioPaciente(convenioPaciente);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<DadosDetalhamentoConvenioPaciente> listarPorPaciente(Long pacienteId, Pageable pageable) {
+        return convenioPacienteRepository
+                .findAllByPacienteIdAndAtivoTrue(pacienteId, pageable)
+                .map(DadosDetalhamentoConvenioPaciente::new);
+    }
+
+    @Transactional
+    public void remover(Long pacienteId, Long convenioPacienteId) {
+        var cp = convenioPacienteRepository.findById(convenioPacienteId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Vínculo não encontrado"));
+
+        if (!Objects.equals(cp.getPaciente().getId(), pacienteId)) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Este vínculo não pertence ao paciente informado");
+        }
+
+        cp.inativar();
+    }
+}

@@ -1,0 +1,142 @@
+package com.cliniara.api.infra.exception;
+
+import jakarta.persistence.EntityNotFoundException;
+import com.cliniara.api.exception.CepInvalidoException;
+import com.cliniara.api.exception.CepNaoEncontradoException;
+import com.cliniara.api.exception.ConflitoException;
+import com.cliniara.api.exception.RespostaInvalidaCepException;
+import com.cliniara.api.exception.ServicoCepIndisponivelException;
+import com.cliniara.api.exception.ValidacaoException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.InvalidDataAccessApiUsageException;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.validation.FieldError;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
+
+@RestControllerAdvice
+public class TratadorDeErros {
+
+    private static final Logger log = LoggerFactory.getLogger(TratadorDeErros.class);
+
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<Void> tratarErro404() {
+        return ResponseEntity.notFound().build();
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<List<DadosErroValidacao>> tratarErro400(MethodArgumentNotValidException ex) {
+        var erros = ex.getFieldErrors();
+        return ResponseEntity.badRequest().body(erros.stream().map(DadosErroValidacao::new).toList());
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<DadosErroValidacao> tratarErro400(HttpMessageNotReadableException ex) {
+        return ResponseEntity.badRequest()
+                .body(new DadosErroValidacao("corpo_requisicao", "Formato de dados inválido ou campo com valor incorreto"));
+    }
+
+    @ExceptionHandler(ValidacaoException.class)
+    public ResponseEntity<DadosErroValidacao> tratarErroValidacaoNegocio(ValidacaoException ex) {
+        return ResponseEntity.badRequest()
+                .body(new DadosErroValidacao("regra_negocio", ex.getMessage()));
+    }
+
+    @ExceptionHandler(ConflitoException.class)
+    public ResponseEntity<DadosErroValidacao> tratarErroConflito(ConflitoException ex) {
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(new DadosErroValidacao("conflito", ex.getMessage()));
+    }
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<String> tratarErroBadCredentials() {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Credenciais inválidas");
+    }
+
+    @ExceptionHandler(DisabledException.class)
+    public ResponseEntity<String> tratarErroUsuarioInativo() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Conta de usuário inativa");
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<String> tratarErroAuthentication() {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Falha na autenticação");
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<String> tratarErroAcessoNegado() {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Acesso negado");
+    }
+
+    @ExceptionHandler(InvalidDataAccessApiUsageException.class)
+    public ResponseEntity<DadosErroValidacao> tratarErroDadosInvalidos(InvalidDataAccessApiUsageException ex) {
+        return ResponseEntity.badRequest()
+                .body(new DadosErroValidacao("sort", "Parâmetro de ordenação inválido. Use o formato: campo,asc ou campo,desc"));
+    }
+
+    @ExceptionHandler(CepInvalidoException.class)
+    public ResponseEntity<DadosErroValidacao> tratarErroCepInvalido(CepInvalidoException ex) {
+        return ResponseEntity.badRequest()
+                .body(new DadosErroValidacao("cep", ex.getMessage()));
+    }
+
+    @ExceptionHandler(CepNaoEncontradoException.class)
+    public ResponseEntity<DadosErroValidacao> tratarErroCepNaoEncontrado(CepNaoEncontradoException ex) {
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(new DadosErroValidacao("cep", ex.getMessage()));
+    }
+
+    @ExceptionHandler(ServicoCepIndisponivelException.class)
+    public ResponseEntity<DadosErroValidacao> tratarErroServicoCepIndisponivel(ServicoCepIndisponivelException ex) {
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(new DadosErroValidacao("cep", ex.getMessage()));
+    }
+
+    @ExceptionHandler(RespostaInvalidaCepException.class)
+    public ResponseEntity<DadosErroValidacao> tratarErroRespostaInvalidaCep(RespostaInvalidaCepException ex) {
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(new DadosErroValidacao("cep", ex.getMessage()));
+    }
+
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<DadosErroValidacao> tratarResponseStatus(ResponseStatusException ex) {
+        HttpStatusCode status = ex.getStatusCode();
+        String reason = ex.getReason();
+        if (reason == null || reason.isBlank()) {
+            return ResponseEntity.status(status).build();
+        }
+        String campo = switch (status.value()) {
+            case 400, 422 -> "regra_negocio";
+            case 403 -> "acesso_negado";
+            case 404 -> "nao_encontrado";
+            case 409 -> "conflito";
+            default -> "erro";
+        };
+        return ResponseEntity.status(status).body(new DadosErroValidacao(campo, reason));
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<DadosErroValidacao> tratarErro500(Exception ex) {
+        log.error("Erro interno não esperado: {}", ex.getMessage(), ex);
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(new DadosErroValidacao("erro_interno", "Ocorreu um erro interno. Contate o suporte."));
+    }
+
+    private record DadosErroValidacao(String campo, String mensagem) {
+        public DadosErroValidacao(FieldError erro) {
+            this(erro.getField(), erro.getDefaultMessage());
+        }
+    }
+}

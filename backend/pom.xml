@@ -8,11 +8,11 @@
 		<version>3.5.4</version>
 		<relativePath/> <!-- lookup parent from repository -->
 	</parent>
-	<groupId>med.voll</groupId>
+	<groupId>com.cliniara</groupId>
 	<artifactId>api</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
-	<name>api</name>
-	<description>API Rest da aplicação Voll.med</description>
+	<name>cliniara-api</name>
+	<description>API REST da plataforma Cliniara</description>
 	<url/>
 	<licenses>
 		<license/>
