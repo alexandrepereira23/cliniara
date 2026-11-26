@@ -22,7 +22,7 @@ function AuthProbe() {
       <span data-testid="token">{token ?? ''}</span>
       <span data-testid="login">{user?.login ?? ''}</span>
       <span data-testid="authenticated">{String(isAuthenticated)}</span>
-      <button type="button" onClick={() => void login('admin@vollmed.com', 'senha')}>
+      <button type="button" onClick={() => void login('admin@cliniara.com', 'senha')}>
         login
       </button>
       <button type="button" onClick={logout}>
@@ -42,7 +42,7 @@ describe('AuthContext', () => {
 
   it('login sem token armazenado persiste a nova sessão', async () => {
     const user = userEvent.setup()
-    const token = createJwt({ sub: 'admin@vollmed.com', role: 'ROLE_ADMIN' })
+    const token = createJwt({ sub: 'admin@cliniara.com', role: 'ROLE_ADMIN' })
     vi.mocked(authApi.login).mockResolvedValue({ tokenJWT: token })
 
     render(
@@ -55,7 +55,7 @@ describe('AuthContext', () => {
 
     await waitFor(() => expect(screen.getByTestId('authenticated')).toHaveTextContent('true'))
     expect(screen.getByTestId('token')).toHaveTextContent(token)
-    expect(screen.getByTestId('login')).toHaveTextContent('admin@vollmed.com')
+    expect(screen.getByTestId('login')).toHaveTextContent('admin@cliniara.com')
     expect(localStorage.getItem(AUTH_TOKEN_KEY)).toBe(token)
     expect(sessionStorage.getItem(AUTH_TOKEN_KEY)).toBeNull()
   })

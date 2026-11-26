@@ -41,7 +41,7 @@ describe('Login', () => {
 
     renderLogin(login)
 
-    await user.type(screen.getByLabelText('Login'), 'admin@vollmed.com')
+    await user.type(screen.getByLabelText('Login'), 'admin@cliniara.com')
     await user.type(screen.getByLabelText('Senha'), 'senha-incorreta')
     await user.click(screen.getByRole('button', { name: 'Entrar' }))
 
@@ -59,7 +59,7 @@ describe('Login', () => {
 
     renderLogin(login)
 
-    await user.type(screen.getByLabelText('Login'), 'medico.inativo@vollmed.com')
+    await user.type(screen.getByLabelText('Login'), 'medico.inativo@cliniara.com')
     await user.type(screen.getByLabelText('Senha'), 'senha123')
     await user.click(screen.getByRole('button', { name: 'Entrar' }))
 

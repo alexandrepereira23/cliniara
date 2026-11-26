@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-const ADMIN_LOGIN = process.env.E2E_ADMIN_LOGIN ?? 'admin@vollmed.com'
+const ADMIN_LOGIN = process.env.E2E_ADMIN_LOGIN ?? 'admin@cliniara.com'
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'admin123'
 
 test.describe('Autenticação e Guardas de Perfil (RBAC)', () => {

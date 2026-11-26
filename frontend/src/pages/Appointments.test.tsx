@@ -70,7 +70,7 @@ function renderWithRole(role: Role) {
     <AuthContext.Provider
       value={{
         token: 'token',
-        user: { login: `${role.toLowerCase()}@voll.med`, role },
+        user: { login: `${role.toLowerCase()}@cliniara.com`, role },
         isAuthenticated: true,
         login: async () => undefined,
         logout: () => undefined,
@@ -109,8 +109,8 @@ describe('Appointments', () => {
     consultasMock.schedule.mockResolvedValue(consultaOriginal)
     consultasMock.cancel.mockResolvedValue(undefined)
     medicosMock.list.mockResolvedValue(page([
-      { id: 2, nome: 'Dra. Ana Paula', email: 'ana@voll.med', crm: '12345', especialidade: 'Cardiologia' },
-      { id: 3, nome: 'Dr. Bruno', email: 'bruno@voll.med', crm: '54321', especialidade: 'Ortopedia' },
+      { id: 2, nome: 'Dra. Ana Paula', email: 'ana@cliniara.com', crm: '12345', especialidade: 'Cardiologia' },
+      { id: 3, nome: 'Dr. Bruno', email: 'bruno@cliniara.com', crm: '54321', especialidade: 'Ortopedia' },
     ]))
     pacientesMock.list.mockResolvedValue(page([
       { id: 7, nome: 'João Silva', email: 'joao@email.com', cpf: '12345678901' },

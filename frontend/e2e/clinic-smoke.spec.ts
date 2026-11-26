@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { createClinicRunData } from './support/testData'
 
-const ADMIN_LOGIN = process.env.E2E_ADMIN_LOGIN ?? 'admin@vollmed.com'
+const ADMIN_LOGIN = process.env.E2E_ADMIN_LOGIN ?? 'admin@cliniara.com'
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'admin123'
 
 async function loginAs(page: Page, login: string, senha: string) {

@@ -14,7 +14,7 @@ vi.mock('@/components/DashboardLayout', () => ({
 
 vi.mock('@/hooks/useAuth', () => ({
   useAuth: () => ({
-    user: { login: 'funcionario@voll.med', role: 'ROLE_FUNCIONARIO' },
+    user: { login: 'funcionario@cliniara.com', role: 'ROLE_FUNCIONARIO' },
     isAuthenticated: true,
   }),
 }));

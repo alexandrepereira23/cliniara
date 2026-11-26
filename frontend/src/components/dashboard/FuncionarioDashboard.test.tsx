@@ -43,7 +43,7 @@ function renderDashboard() {
     <AuthContext.Provider
       value={{
         token: 'token',
-        user: { login: 'funcionario@voll.med', role: 'ROLE_FUNCIONARIO' },
+        user: { login: 'funcionario@cliniara.com', role: 'ROLE_FUNCIONARIO' },
         isAuthenticated: true,
         login: async () => undefined,
         logout: () => undefined,

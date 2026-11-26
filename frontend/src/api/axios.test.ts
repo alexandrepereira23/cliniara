@@ -75,7 +75,7 @@ describe('api axios auth interceptor', () => {
     localStorage.setItem(AUTH_TOKEN_KEY, expiredToken)
     api.defaults.adapter = successAdapter(capture)
 
-    await api.post('/auth/login', { login: 'admin@vollmed.com', senha: 'senha' })
+    await api.post('/auth/login', { login: 'admin@cliniara.com', senha: 'senha' })
 
     expect(authorizationHeader(capture.config!)).toBeUndefined()
   })
@@ -110,7 +110,7 @@ describe('api axios auth interceptor', () => {
     localStorage.setItem(AUTH_TOKEN_KEY, token)
     api.defaults.adapter = unauthorizedAdapter(capture)
 
-    await expect(api.post('/auth/login', { login: 'admin@vollmed.com', senha: 'errada' })).rejects.toMatchObject({
+    await expect(api.post('/auth/login', { login: 'admin@cliniara.com', senha: 'errada' })).rejects.toMatchObject({
       response: { status: 401 },
     })
 

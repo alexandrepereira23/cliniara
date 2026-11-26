@@ -56,7 +56,7 @@ function renderWithRole(role: Role) {
     <AuthContext.Provider
       value={{
         token: 'token',
-        user: { login: `${role.toLowerCase()}@voll.med`, role },
+        user: { login: `${role.toLowerCase()}@cliniara.com`, role },
         isAuthenticated: true,
         login: async () => undefined,
         logout: () => undefined,

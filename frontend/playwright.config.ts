@@ -4,7 +4,7 @@ import path from 'node:path'
 
 const CEP_STUB_PORT = process.env.CEP_STUB_PORT ?? '18081'
 const CEP_API_KEY = process.env.CEP_EXPECTED_API_KEY ?? 'e2e-cep-secret-key'
-const ADMIN_LOGIN = process.env.E2E_ADMIN_LOGIN ?? 'admin@vollmed.com'
+const ADMIN_LOGIN = process.env.E2E_ADMIN_LOGIN ?? 'admin@cliniara.com'
 const ADMIN_PASSWORD = process.env.E2E_ADMIN_PASSWORD ?? 'admin123'
 const DB_HOST = process.env.DB_HOST ?? '127.0.0.1'
 const DB_PORT = Number(process.env.DB_PORT ?? 3307)
@@ -56,7 +56,7 @@ const backendEnv: Record<string, string> = {
     ? {
         DB_HOST,
         DB_PORT: String(DB_PORT),
-        DB_NAME: process.env.DB_NAME ?? 'vollmed_api',
+        DB_NAME: process.env.DB_NAME ?? 'cliniara_api',
         DB_USER: process.env.DB_USER ?? 'root',
         DB_PASSWORD: process.env.DB_PASSWORD ?? 'root',
       }

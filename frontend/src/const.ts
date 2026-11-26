@@ -1,1 +1,1 @@
-export const APP_NAME = 'Voll.med';
+export const APP_NAME = 'Cliniara';

@@ -60,7 +60,7 @@ export default function Login() {
           <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
             <Stethoscope size={20} className="text-primary-foreground" />
           </div>
-          <span className="text-xl font-bold text-foreground">Voll.med</span>
+          <span className="text-xl font-bold text-foreground">Cliniara</span>
         </div>
 
         <div>
@@ -96,7 +96,7 @@ export default function Login() {
             <div className="w-9 h-9 rounded-md bg-primary flex items-center justify-center">
               <Stethoscope size={18} className="text-primary-foreground" />
             </div>
-            <span className="text-lg font-bold text-foreground">Voll.med</span>
+            <span className="text-lg font-bold text-foreground">Cliniara</span>
           </div>
 
           <div className="mb-8">
@@ -111,7 +111,7 @@ export default function Login() {
               <Label htmlFor="login">Login</Label>
               <Input
                 id="login"
-                placeholder="seu@email.com"
+                placeholder="usuario@cliniara.com"
                 autoComplete="username"
                 {...register('login')}
                 className={errors.login ? 'border-destructive' : ''}

@@ -11,7 +11,7 @@ function base64Url(value: object) {
 }
 
 export function createJwt({
-  sub = 'admin@vollmed.com',
+  sub = 'admin@cliniara.com',
   role = 'ROLE_ADMIN',
   exp = Math.floor(Date.now() / 1000) + 3600,
 }: JwtPayloadOptions = {}) {

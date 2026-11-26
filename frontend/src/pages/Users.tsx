@@ -257,7 +257,7 @@ export default function Users() {
                 type="email"
                 value={formData.login}
                 onChange={e => setFormData(p => ({ ...p, login: e.target.value }))}
-                placeholder="usuario@vollmed.com"
+                placeholder="usuario@cliniara.com"
               />
             </div>
             <div>
