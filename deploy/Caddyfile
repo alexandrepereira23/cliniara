@@ -1,4 +1,4 @@
-{$VOLL_MED_API_DOMAIN} {
+{$CLINIARA_API_DOMAIN} {
 	encode zstd gzip
 
 	handle_path /api/* {

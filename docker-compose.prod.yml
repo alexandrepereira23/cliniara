@@ -56,8 +56,15 @@ services:
     image: caddy:2-alpine
     restart: unless-stopped
     environment:
-      VOLL_MED_API_DOMAIN: ${VOLL_MED_API_DOMAIN:?VOLL_MED_API_DOMAIN is required}
+      CLINIARA_API_DOMAIN: ${CLINIARA_API_DOMAIN:-${VOLL_MED_API_DOMAIN:-}}
       CEP_API_DOMAIN: ${CEP_API_DOMAIN:?CEP_API_DOMAIN is required}
+    # Compose avalia a expansão interna mesmo quando a variável nova está definida.
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        : "$${CLINIARA_API_DOMAIN:?Defina CLINIARA_API_DOMAIN ou VOLL_MED_API_DOMAIN}"
+        exec caddy run --config /etc/caddy/Caddyfile --adapter caddyfile
     ports:
       - "80:80"
       - "443:443"

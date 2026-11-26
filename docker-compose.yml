@@ -1,12 +1,12 @@
 services:
   db:
     image: mysql:8.0
-    container_name: mysql-voll
+    container_name: mysql-cliniara
     ports:
       - "${DB_PORT:-3307}:3306"
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
-      MYSQL_DATABASE: ${DB_NAME:-vollmed_api}
+      MYSQL_DATABASE: ${DB_NAME:-cliniara_api}
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
@@ -20,16 +20,16 @@ services:
   backend:
     build:
       context: ./backend
-    container_name: backend-voll
+    container_name: backend-cliniara
     environment:
       DB_HOST: db
       DB_PORT: 3306
-      DB_NAME: ${DB_NAME:-vollmed_api}
+      DB_NAME: ${DB_NAME:-cliniara_api}
       DB_USER: ${DB_USER:-root}
       DB_PASSWORD: ${DB_PASSWORD}
       JWT_SECRET: ${JWT_SECRET}
       TOKEN_EXPIRACAO_HORAS: ${TOKEN_EXPIRACAO_HORAS:-2}
-      ADMIN_LOGIN: ${ADMIN_LOGIN:-admin@vollmed.com}
+      ADMIN_LOGIN: ${ADMIN_LOGIN:-admin@cliniara.com}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       CEP_API_KEY: ${CEP_API_KEY:-}
@@ -49,7 +49,7 @@ services:
   frontend:
     build:
       context: ./frontend
-    container_name: frontend-voll
+    container_name: frontend-cliniara
     ports:
       - "${FRONTEND_PORT:-3000}:80"
     depends_on:
