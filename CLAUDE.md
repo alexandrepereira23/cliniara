@@ -34,13 +34,13 @@ O padrão do projeto é: variável no `.env` → mapeada em `application.propert
 |------------------|--------------------|-----------|
 | `DB_HOST` | *(interpolada na URL JDBC)* | Host do MySQL (padrão: `localhost`; no Compose: `db`) |
 | `DB_PORT` | *(interpolada na URL JDBC)* | Porta do MySQL (padrão: `3307` no host; `3306` na rede Docker) |
-| `DB_NAME` | *(interpolada na URL JDBC)* | Nome do banco (padrão: `vollmed_api`) |
+| `DB_NAME` | *(interpolada na URL JDBC)* | Nome do banco (padrão: `cliniara_api`) |
 | `DB_USER` | `spring.datasource.username` | Usuário do MySQL (padrão: `root`) |
 | `DB_PASSWORD` | `spring.datasource.password` | Senha do MySQL (padrão local: `root`) |
 | `BACKEND_PORT` / `FRONTEND_PORT` | *(usadas pelo `docker-compose.yml`)* | Portas publicadas no host local (`8080` e `3000`) |
 | `JWT_SECRET` | `api.security.token.secret` | Chave JWT (mín. 32 chars) — `openssl rand -base64 32` |
 | `TOKEN_EXPIRACAO_HORAS` | `api.security.token.expiracao-horas` | Expiração do JWT (padrão: `2`) |
-| `ADMIN_LOGIN` | `admin.login` | Login do admin inicial (padrão: `admin@vollmed.com`) |
+| `ADMIN_LOGIN` | `admin.login` | Login do admin inicial (padrão: `admin@cliniara.com`) |
 | `ADMIN_PASSWORD` | `admin.password` | Senha do admin inicial — **obrigatório para criar o admin** |
 | `ANTHROPIC_API_KEY` | `anthropic.api.key` | Chave da Anthropic; app inicia sem ela, mas chamadas `/ia/*` falham em runtime |
 | `CEP_API_BASE_URL` | `cep.api.base-url` | URL base do serviço `Consultar-Cep` (padrão local: `http://localhost:8081`; VPS: `http://consultacep:8080`) |
@@ -202,7 +202,7 @@ Todas as páginas das rotas ativas estão conectadas à API real, e os artefatos
 - **Frontend (Produção):** publicado na Vercel (`https://vollmed.usenexora.online`), com `VITE_API_BASE_URL=https://api-vollmed.usenexora.online/api`.
 - **Backend + CEP + MySQL (Produção na VPS):** orquestrados via `docker-compose.prod.yml` e `deploy/Caddyfile` (Caddy termina HTTPS e faz `handle_path /api/*` para `backend:8080`). Swagger fica desabilitado em produção (`SPRINGDOC_SWAGGER_UI_ENABLED=false`). Ver detalhes em `docs/DEPLOY_VPS.md`.
 - **CI/CD:** `.github/workflows/deploy.yml` roda testes backend (`./mvnw test`), testes frontend (`npm test`), typecheck (`npm run check`) e build (`npm run build`), realizando deploy via SSH na VPS em pushes na branch `main`.
-- **CORS:** `SecurityConfigurations` libera `localhost` (`3000`, `5173`, `5174`), `https://vollmed.usenexora.online` e domínios Vercel do projeto (`https://voll-*.vercel.app`).
+- **CORS:** `SecurityConfigurations` libera origens locais, os domínios Cliniara e seus previews Vercel; as origens legadas permanecem durante a transição (ver `docs/DEPLOY_VPS.md`).
 
 ## Referências Documentais
 

@@ -1,4 +1,4 @@
-# Testes Automatizados — Voll.med
+# Testes Automatizados — Cliniara
 
 Este documento registra a estrategia de testes, comandos de validacao e pendencias de cobertura do projeto.
 
@@ -84,7 +84,7 @@ npm run test:e2e:ui               # modo interativo
 - MySQL acessivel em `DB_HOST:DB_PORT` (padrao `127.0.0.1:3307`, por exemplo via `docker compose --env-file backend/.env up -d db`): `spring-boot:run` com Flyway real.
 - Sem MySQL: `spring-boot:test-run` com H2 em memoria (`E2eApplication`). Para forcar um modo, use `E2E_DB_MODE=mysql` ou `E2E_DB_MODE=h2`.
 
-Variaveis uteis: `E2E_ADMIN_LOGIN`/`E2E_ADMIN_PASSWORD` (padrao `admin@vollmed.com`/`admin123`), `CEP_STUB_PORT` (padrao `18081`) e `RATE_LIMIT_MAX_REQUESTS` (padrao `200` no E2E; `10` em producao).
+Variaveis uteis: `E2E_ADMIN_LOGIN`/`E2E_ADMIN_PASSWORD` (padrao `admin@cliniara.com`/`admin123`), `CEP_STUB_PORT` (padrao `18081`) e `RATE_LIMIT_MAX_REQUESTS` (padrao `200` no E2E; `10` em producao).
 
 ## Estrategia de Testes Backend
 
@@ -192,7 +192,7 @@ A busca de CEP usa um stub HTTP local (`e2e/support/cepStubServer.ts`) no lugar 
 
 ## Troubleshooting Docker Local
 
-Erro `SQL State: 08S01 / Communications link failure` no `backend-voll` geralmente indica corrida de inicializacao com o MySQL. O Compose usa healthcheck SQL real e retries do Flyway para mitigar.
+Erro `SQL State: 08S01 / Communications link failure` no `backend-cliniara` geralmente indica corrida de inicializacao com o MySQL. O Compose usa healthcheck SQL real e retries do Flyway para mitigar.
 
 Erro `SQL State: HY000 / Error Code: 1130` ou `Access denied for user 'root'@'localhost'` pode indicar volume MySQL antigo com senha/grants incompatíveis com o `.env` atual. Em ambiente local descartavel:
 

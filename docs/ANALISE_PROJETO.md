@@ -1,10 +1,10 @@
-# Analise do Projeto Voll.med
+# Analise do Projeto Cliniara
 
 Este documento consolida o estado atual do repositorio e separa funcionalidades implementadas, riscos tecnicos e proximas fases recomendadas. Para uma avaliacao aprofundada sob a otica de processos clinicos e produto, consulte tambem `docs/ANALISE_EVOLUCAO_CLINICA.md`.
 
 ## Resumo Executivo
 
-O Voll.med esta estruturado como monorepo fullstack com backend Spring Boot 3.5.4, frontend React 19, MySQL 8 / Flyway, Docker Compose, JWT/RBAC, IA clinica, integracao segura com o servico proprio `Consultar-Cep` e pipeline de CI/CD para deploy em VPS.
+O Cliniara esta estruturado como monorepo fullstack com backend Spring Boot 3.5.4, frontend React 19, MySQL 8 / Flyway, Docker Compose, JWT/RBAC, IA clinica, integracao segura com o servico proprio `Consultar-Cep` e pipeline de CI/CD para deploy em VPS.
 
 Estado validado nesta revisao:
 

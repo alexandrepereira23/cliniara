@@ -1,10 +1,10 @@
-# Análise e plano de evolução clínica — Voll.med
+# Análise e plano de evolução clínica — Cliniara
 
 > Análise estática do repositório, com foco em gestão de produto, realismo dos processos clínicos e valorização do portfólio. As propostas deste documento não representam funcionalidades já implementadas nem certificação de conformidade para uso clínico real.
 
 ## Diagnóstico geral
 
-**O Voll.med já deixou de ser um CRUD. Ele tem uma boa base técnica e vários módulos de gestão clínica, mas ainda precisa evoluir de “cadastros e funcionalidades separadas” para uma jornada de atendimento completa.**
+**O Cliniara já deixou de ser um CRUD. Ele tem uma boa base técnica e vários módulos de gestão clínica, mas ainda precisa evoluir de “cadastros e funcionalidades separadas” para uma jornada de atendimento completa.**
 
 Essa é a mudança que mais vai valorizar o portfólio: demonstrar entendimento não apenas de como desenvolver telas e APIs, mas de como uma clínica funciona.
 
@@ -46,7 +46,7 @@ Antes de adicionar módulos, há algumas inconsistências importantes.
 
 ### 2.1. O retorno de consulta precisa de validações adicionais
 
-Em [`AgendaDeConsultas.java`](../backend/src/main/java/med/voll/api/domain/consulta/AgendaDeConsultas.java#L179), a validação verifica existência, atividade, prazo máximo de 30 dias e retorno já cadastrado.
+Em [`AgendaDeConsultas.java`](../backend/src/main/java/com/cliniara/api/domain/consulta/AgendaDeConsultas.java#L179), a validação verifica existência, atividade, prazo máximo de 30 dias e retorno já cadastrado.
 
 Entretanto, não valida explicitamente:
 
@@ -66,7 +66,7 @@ Hoje, a consulta tem um horário de início, mas não duração. A verificação
 
 Além disso, a sequência “verificar disponibilidade → salvar” precisa de proteção contra duas recepcionistas agendando simultaneamente.
 
-Referências: [`Consulta.java`](../backend/src/main/java/med/voll/api/domain/consulta/Consulta.java#L36) e [`ConsultaRepository.java`](../backend/src/main/java/med/voll/api/domain/consulta/ConsultaRepository.java#L15).
+Referências: [`Consulta.java`](../backend/src/main/java/com/cliniara/api/domain/consulta/Consulta.java#L36) e [`ConsultaRepository.java`](../backend/src/main/java/com/cliniara/api/domain/consulta/ConsultaRepository.java#L15).
 
 ### 2.3. Convênio do paciente não é validado no agendamento
 
@@ -98,7 +98,7 @@ O cadastro não apresenta validação de início anterior ao fim nem de sobrepos
 
 Também merece um teste de integração a remoção: o controller chama `inativar()` sem uma transação de escrita explícita ou `save`.
 
-Referência: [`DisponibilidadeMedicoController.java`](../backend/src/main/java/med/voll/api/controller/DisponibilidadeMedicoController.java).
+Referência: [`DisponibilidadeMedicoController.java`](../backend/src/main/java/com/cliniara/api/controller/DisponibilidadeMedicoController.java).
 
 ### 2.7. Auditoria existe, mas ainda não representa conformidade completa
 
@@ -486,7 +486,7 @@ Para apresentar:
 
 **Não priorizar aumentar a quantidade de módulos agora. Priorizar fechar a jornada clínica com integridade, permissões corretas e boa experiência.**
 
-O próximo grande salto do Voll.med deve ser:
+O próximo grande salto do Cliniara deve ser:
 
 **agenda confiável → recepção → atendimento integrado → documentos → conclusão.**
 

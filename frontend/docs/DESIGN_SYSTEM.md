@@ -1,4 +1,4 @@
-# Design System — Voll.med Frontend
+# Design System — Cliniara Frontend
 
 Estilo: **Neutral Warm (Warm Beige + Sage Green)** — paleta acolhedora de baixo cansaço visual para uso clínico prolongado, fugindo do branco puro e do azul hospitalar tradicional.
 
@@ -124,7 +124,7 @@ Pílula compacta (`rounded-full px-3 py-1 text-xs font-medium`) com variantes `d
 ┌──────────────────┬────────────────────────────────────────────┐
 │ Sidebar (w-64)   │ Header superior (h-16, bg-card, data pt-BR)│
 │ bg-sidebar       ├────────────────────────────────────────────┤
-│ - Marca Voll.med │ Main (flex-1 overflow-y-auto bg-background)│
+│ - Marca Cliniara │ Main (flex-1 overflow-y-auto bg-background)│
 │ - Nav por Role   │   └── .container py-8 (max-w 1280px)       │
 │ - Avatar + Sair  │                                            │
 └──────────────────┴────────────────────────────────────────────┘

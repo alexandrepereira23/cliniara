@@ -1,4 +1,4 @@
-# Arquitetura Frontend — Voll.med
+# Arquitetura Frontend — Cliniara
 
 Frontend SPA em React 19 + TypeScript 5.6 + Vite 7. A comunicação com o backend Spring Boot é feita via Axios com interceptor JWT e proxy `/api`.
 

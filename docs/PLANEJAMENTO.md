@@ -1,4 +1,4 @@
-# Planejamento de Evolucao — Voll.med
+# Planejamento de Evolucao — Cliniara
 
 Este documento organiza as fases do projeto. Pendencias detalhadas e melhorias futuras ficam centralizadas em `docs/BACKLOG.md`.
 

@@ -1,4 +1,4 @@
-# Regras de Negócio — API Voll.med
+# Regras de Negócio — API Cliniara
 
 Este documento centraliza todas as regras de negócio implementadas na API, servindo como referência para desenvolvimento, revisão e testes.
 

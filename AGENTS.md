@@ -37,12 +37,12 @@ npm run test:e2e   # Playwright; sobe backend e frontend sozinho (ver docs/TESTE
 - **Soft deletes**: Clinical/operational entities use `ativo` field, not physical deletes
 - **Pagination**: 10 records per page by default (20 in specialties and audit endpoints; 100 in available doctors selector)
 - **API Docs**: Swagger UI at `/swagger-ui.html` (enabled in local dev, disabled in production VPS)
-- **Production & CI/CD**: Frontend on Vercel (`vollmed.usenexora.online`); APIs + MySQL + Caddy HTTPS reverse proxy on VPS (`docker-compose.prod.yml`, `deploy/Caddyfile`, `.github/workflows/deploy.yml`, see `docs/DEPLOY_VPS.md`)
+- **Production & CI/CD**: Cliniara frontend on Vercel; APIs + MySQL + Caddy HTTPS reverse proxy on VPS (`docker-compose.prod.yml`, `deploy/Caddyfile`, `.github/workflows/deploy.yml`, see `docs/DEPLOY_VPS.md` for active hosts and migration)
 
 ## Entry Points
 
-- `ApiApplication.java` - main class
-- Controllers (14): `AutenticacaoController`, `MedicoController`, `MedicoConvenioController`, `PacientesController`, `ConsultaController`, `DisponibilidadeMedicoController`, `ProntuarioController`, `PrescricaoController`, `AtestadoController`, `ConvenioController`, `ConvenioPacienteController`, `AuditoriaController`, `EspecialidadeController`, `IaController`, `EnderecoController`
+- `com.cliniara.api.ApiApplication` - main class
+- Controllers (15): `AutenticacaoController`, `MedicoController`, `MedicoConvenioController`, `PacientesController`, `ConsultaController`, `DisponibilidadeMedicoController`, `ProntuarioController`, `PrescricaoController`, `AtestadoController`, `ConvenioController`, `ConvenioPacienteController`, `AuditoriaController`, `EspecialidadeController`, `IaController`, `EnderecoController`
 
 ## Migrations applied
 
@@ -64,7 +64,7 @@ CI workflow (`.github/workflows/deploy.yml`) runs backend tests, frontend tests,
 
 - `backend/.env` file must exist for local backend configuration and local Docker Compose (`DB_PASSWORD=root`)
 - `backend/.env.example` contains development-only defaults; copy it to `backend/.env` and replace secrets outside local dev
-- Production VPS uses `.env.production.example` → `/opt/vollmed/app/.env` with `docker-compose.prod.yml` and Caddy stripping `/api` prefix via `handle_path /api/*`
+- Production VPS uses `docker-compose.prod.yml` and Caddy strips `/api` via `handle_path /api/*`. Use `.env.production.example` for new installations only; preserve the current `.env` when migrating (see `docs/DEPLOY_VPS.md`).
 - Fullstack local Docker Compose publishes frontend on `${FRONTEND_PORT:-3000}` and backend on `${BACKEND_PORT:-8080}`
 - `JWT_SECRET` must be configured (at least 32 characters)
 - `CEP_API_BASE_URL` (default: `http://localhost:8081` locally; `http://consultacep:8080` in prod Compose) e `CEP_API_KEY` configuram o consumo backend-to-backend da API `Consultar-Cep`

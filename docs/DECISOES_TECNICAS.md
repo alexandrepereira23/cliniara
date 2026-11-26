@@ -1,4 +1,4 @@
-# Decisões Técnicas — API Voll.med
+# Decisões Técnicas — API Cliniara
 
 Registro de decisões arquiteturais e de design adotadas no projeto, com justificativa. Serve como referência para novos desenvolvedores e para revisões futuras.
 
@@ -60,7 +60,7 @@ Todos os parâmetros `Pageable` nos controllers usam `@ParameterObject` do Sprin
 
 **Por quê:** Sem a anotação, o Swagger UI renderiza o `sort` como `array[string]` com valor padrão `["string"]`, que é enviado literalmente ao JPA e causa `InvalidDataAccessApiUsageException`. Com `@ParameterObject`, os parâmetros são expandidos individualmente (`page`, `size`, `sort`).
 
-**Proteção contra regressão:** `AutenticacaoControllerTest.todosParametrosPageableNosControllersDevemTerParameterObject` varre todos os `@RestController`s do pacote `med.voll.api.controller` e falha caso qualquer parâmetro `Pageable` seja declarado sem `@ParameterObject`.
+**Proteção contra regressão:** `AutenticacaoControllerTest.todosParametrosPageableNosControllersDevemTerParameterObject` varre todos os `@RestController`s do pacote `com.cliniara.api.controller` e falha caso qualquer parâmetro `Pageable` seja declarado sem `@ParameterObject`.
 
 ---
 
@@ -225,13 +225,13 @@ O seletor de médicos no cadastro de usuário (`/users`) ficava vazio porque `RO
 
 ### Backend como Gateway Seguro e Camada Anti-Corrupção (ACL)
 
-A clínica Voll.med consome a API própria de CEP (`Consultar-Cep`).
+A clínica Cliniara consome a API própria de CEP (`Consultar-Cep`).
 
-**Decisão:** O frontend nunca chama a API de CEP diretamente nem tem acesso à `CEP_API_KEY`. O backend Voll.med atua como gateway seguro expondo `GET /enderecos/cep/{cep}`, protegido por JWT para perfis `ROLE_FUNCIONARIO` e `ROLE_ADMIN`.
+**Decisão:** O frontend nunca chama a API de CEP diretamente nem tem acesso à `CEP_API_KEY`. O backend Cliniara atua como gateway seguro expondo `GET /enderecos/cep/{cep}`, protegido por JWT para perfis `ROLE_FUNCIONARIO` e `ROLE_ADMIN`.
 
 **Por quê:**
 1. **Segurança de credenciais:** O header `X-API-Key` é injetado no backend a partir de variáveis de ambiente do servidor (`cep.api.key`), impedindo vazamento de chaves no bundle SPA ou no tráfego de rede do cliente.
-2. **Isolamento de contrato e CORS:** O frontend consome um contrato unificado do Voll.med (`DadosEnderecoCep`). CORS entre browsers e a API de CEP é irrelevante, pois a comunicação é estritamente backend-to-backend.
+2. **Isolamento de contrato e CORS:** O frontend consome um contrato unificado do Cliniara (`DadosEnderecoCep`). CORS entre browsers e a API de CEP é irrelevante, pois a comunicação é estritamente backend-to-backend.
 3. **Desacoplamento via interface:** A comunicação externa é isolada na interface `CepClient` e implementada por `RestClientCepClient` (usando `RestClient` moderno do Spring Boot 3.5+), permitindo testes com mocks sem necessidade de servidor HTTP externo.
 
 ### Rota Externa `/api/v1/ceps/{cep}/detalhes`
@@ -257,7 +257,7 @@ O ambiente local pode apontar para uma instancia local do `Consultar-Cep` ou par
 
 ### Migração do Backend para VPS com Docker Compose e Caddy
 
-Originalmente publicado no Railway durante o deploy inicial, o backend do Voll.med e a API `Consultar-Cep` migraram para uma **VPS Linux** orquestrada por `docker-compose.prod.yml` e `deploy/Caddyfile` (detalhes operacionais em `docs/DEPLOY_VPS.md`).
+Originalmente publicado no Railway durante o deploy inicial, o backend do Cliniara e a API `Consultar-Cep` migraram para uma **VPS Linux** orquestrada por `docker-compose.prod.yml` e `deploy/Caddyfile` (detalhes operacionais em `docs/DEPLOY_VPS.md`).
 
 **Decisões adotadas na VPS:**
 1. **Terminação HTTPS via Caddy:** Apenas as portas `80` e `443` são expostas no host. O Caddy gerencia certificados TLS automaticamente para `api-vollmed.usenexora.online` e `api-cep.usenexora.online`.
@@ -270,11 +270,17 @@ Originalmente publicado no Railway durante o deploy inicial, o backend do Voll.m
 
 O frontend React/Vite permanece publicado na Vercel (`https://vollmed.usenexora.online`), consumindo a API em produção via `VITE_API_BASE_URL=https://api-vollmed.usenexora.online/api` e `frontend/vercel.json` para rewrite de rotas SPA. A segurança real permanece no backend; as guardas de rota do frontend são apenas UX.
 
-**Decisão:** chamadas sensíveis continuam passando pelo backend Voll.med. O frontend não recebe `CEP_API_KEY`, `ANTHROPIC_API_KEY` nem qualquer segredo backend-to-backend.
+**Decisão:** chamadas sensíveis continuam passando pelo backend Cliniara. O frontend não recebe `CEP_API_KEY`, `ANTHROPIC_API_KEY` nem qualquer segredo backend-to-backend.
 
 ### CORS
 
-`SecurityConfigurations` permite origens locais (`localhost`/`127.0.0.1` nas portas `3000`, `5173` e `5174`), o domínio customizado de produção `https://vollmed.usenexora.online` e domínios Vercel do projeto (incluindo padrão `https://voll-*.vercel.app`).
+`SecurityConfigurations` permite origens locais (`localhost`/`127.0.0.1` nas portas `3000`, `5173` e `5174`), os domínios `https://cliniara.usenexora.online` e `https://cliniara.vercel.app` e previews `https://cliniara-*.vercel.app`. As origens antigas, incluindo `https://vollmed.usenexora.online` e o padrão `https://voll-*.vercel.app`, permanecem durante a transição.
+
+### Rebranding para Cliniara
+
+**Decisão:** migrar o pacote Java de `med.voll.api` para `com.cliniara.api`, com `groupId` `com.cliniara`, mantendo o `artifactId` `api` e o histórico Flyway V1–V25. Os pointcuts de auditoria usam o novo pacote, e o teste de `@ParameterObject` exige encontrar ao menos 15 controllers. O novo emissor JWT `API Cliniara` exige novo login após a troca.
+
+**Compatibilidade:** novas instalações usam `cliniara_api` e `admin@cliniara.com`; instalações existentes mantêm seus valores explícitos. O Compose aceita `VOLL_MED_API_DOMAIN` na ausência de `CLINIARA_API_DOMAIN`, e o deploy mantém `/opt/vollmed/app` como fallback. O projeto Compose e os volumes de produção não foram renomeados. O [runbook da VPS](DEPLOY_VPS.md#migração-para-cliniara) descreve a transição de domínios e diretórios.
 
 ---
 

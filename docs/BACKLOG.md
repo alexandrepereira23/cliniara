@@ -1,8 +1,8 @@
-# Backlog do Projeto Voll.med
+# Backlog do Projeto Cliniara
 
 ## Visao Geral
 
-Este arquivo centraliza melhorias futuras, correcoes tecnicas mapeadas, pendencias conhecidas e proximas funcionalidades do Voll.med. Itens aqui nao devem ser descritos como implementados em outros documentos ate que sejam entregues e validados.
+Este arquivo centraliza melhorias futuras, correcoes tecnicas mapeadas, pendencias conhecidas e proximas funcionalidades do Cliniara. Itens aqui nao devem ser descritos como implementados em outros documentos ate que sejam entregues e validados.
 
 ## Prioridade Alta
 

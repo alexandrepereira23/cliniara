@@ -1,4 +1,4 @@
-# Referência de Endpoints — API Voll.med
+# Referência de Endpoints — API Cliniara
 
 Todos os endpoints exigem autenticação via JWT (`Authorization: Bearer <token>`), exceto `/auth/login`.
 

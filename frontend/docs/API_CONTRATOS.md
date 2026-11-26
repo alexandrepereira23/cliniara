@@ -3,7 +3,7 @@
 - **Base URL no Axios (`src/api/axios.ts`):** `import.meta.env.VITE_API_BASE_URL ?? '/api'`
   - Dev local (`vite.config.ts`): `/api/*` → `http://localhost:8080/*`
   - Docker local (`nginx.conf`): `/api/*` → `http://backend:8080/*`
-  - Produção (Vercel → VPS Caddy): `https://api-vollmed.usenexora.online/api/*` → `backend:8080/*`
+  - Produção (Vercel → VPS Caddy): `https://api-vollmed.usenexora.online/api/*` (host atual da API Cliniara) → `backend:8080/*`. Consulte o [runbook da VPS](../../docs/DEPLOY_VPS.md) antes de mudar o host.
 - **Auth:** `Authorization: Bearer <tokenJWT>` injetado automaticamente em todas as requisições, exceto `POST /auth/login`.
 
 Perfis de acesso (`Role` em `src/types/auth.ts`):
