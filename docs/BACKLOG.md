@@ -21,13 +21,11 @@ Este arquivo centraliza melhorias futuras, correcoes tecnicas mapeadas, pendenci
 - **Auditoria (`/audit`):** expor consulta de trilha por tipo de recurso clinico (`GET /auditoria/{recursoTipo}/{recursoId}` para `PRONTUARIO`, `PRESCRICAO` e `ATESTADO`).
 - **Revisao de navegacao para `ROLE_AUDITOR` e `ROLE_GESTOR`:** alinhar rotas acessiveis no frontend com o escopo de leitura definido para cada perfil.
 
-### E2E Smoke Tests
+### Ampliar Cobertura E2E
 
-- Login e redirecionamento inicial por perfil.
-- Navegacao principal (`ROLE_ADMIN`, `ROLE_FUNCIONARIO`, `ROLE_MEDICO`, `ROLE_AUDITOR`/`ROLE_GESTOR`).
-- Cadastro de medico com busca de CEP.
-- Cadastro de paciente com busca de CEP.
-- Agendamento de consulta.
+- Navegacao de `ROLE_AUDITOR`/`ROLE_GESTOR` e consulta de auditoria LGPD.
+- Fluxo clinico completo: prontuario, prescricao e atestado pelo `ROLE_MEDICO`.
+- Confirmar o job `e2e` do GitHub Actions na primeira execucao real (MySQL + Flyway).
 
 ### Ciclo Completo da Consulta
 
@@ -117,3 +115,4 @@ Definir se usuario `ROLE_MEDICO` deve continuar autenticando quando o medico vin
 - Tratamento dedicado de `ResponseStatusException` em `TratadorDeErros` preservando status HTTP (`400`, `403`, `404`, `409`, `422`) e payload JSON padronizado.
 - Persistencia transacional (`@Transactional` + `save()`) em `DisponibilidadeMedicoController` e `MedicoConvenioController`, validada com teste de integracao em banco H2.
 - `@ParameterObject` aplicado em todos os parametros `Pageable` dos controllers, protegido por teste reflexivo automatizado.
+- E2E smoke tests com Playwright (login, RBAC, cadastros com CEP, disponibilidade, agendamento e vinculo de usuario medico), integrados ao CI como gate do deploy.

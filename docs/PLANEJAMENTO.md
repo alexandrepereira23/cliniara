@@ -73,16 +73,20 @@ Este documento organiza as fases do projeto. Pendencias detalhadas e melhorias f
 - Mitigacao e correcao das vulnerabilidades do frontend via `npm audit fix` (0 vulnerabilidades remanescentes).
 - Correcao de aderencia no backend: handler dedicado para `ResponseStatusException` em `TratadorDeErros`, persistencia transacional em `DisponibilidadeMedicoController` / `MedicoConvenioController` e `@ParameterObject` em todos os endpoints paginados (206 testes backend passando).
 
-## Fase Atual — E2E Smoke Tests
+### 9. E2E Smoke Tests
 
-Objetivo: implementar testes ponta a ponta (E2E) cobrindo os fluxos criticos da aplicacao com navegador e stack local integrada.
+- Suite Playwright + Chromium em `frontend/e2e/` (7 testes): login, RBAC por perfil, cadastro de medico e paciente com busca de CEP, disponibilidade, agendamento com validacao de horario e vinculo de usuario medico.
+- Stub HTTP local do `Consultar-Cep` exigindo `X-API-Key`, validando o gateway backend-to-backend.
+- Limite do `RateLimitFilter` configuravel por `RATE_LIMIT_MAX_REQUESTS` (padrao `10`; `200` no E2E).
+- Job `e2e` no GitHub Actions com MySQL 8.0 + Flyway, requisito do `deploy` na VPS. Pendente: primeira execucao real no CI.
 
-Entregas prioritarias desta fase:
+## Fase Atual — Integridade Clinica e Alinhamento Backend/UI
 
-- Login e navegacao por perfil (`ROLE_ADMIN`, `ROLE_FUNCIONARIO`, `ROLE_MEDICO`).
-- Cadastro de medico com autopreenchimento de endereco via CEP.
-- Cadastro de paciente com autopreenchimento de endereco via CEP.
-- Agendamento de consulta com validacao de horario e disponibilidade.
+Entregas prioritarias desta fase (detalhes em `docs/BACKLOG.md`):
+
+- Validacoes de retorno, conflito de agenda e elegibilidade do convenio do paciente.
+- Conectar na UI os endpoints ja existentes (prontuario, retorno, cancelamento por `canceladoPor`, auditoria por recurso).
+- Remover artefatos legados do frontend.
 
 ## Proximas Fases Sugeridas
 

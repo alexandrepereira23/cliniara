@@ -45,6 +45,7 @@ O padrão do projeto é: variável no `.env` → mapeada em `application.propert
 | `ANTHROPIC_API_KEY` | `anthropic.api.key` | Chave da Anthropic; app inicia sem ela, mas chamadas `/ia/*` falham em runtime |
 | `CEP_API_BASE_URL` | `cep.api.base-url` | URL base do serviço `Consultar-Cep` (padrão local: `http://localhost:8081`; VPS: `http://consultacep:8080`) |
 | `CEP_API_KEY` | `cep.api.key` | Chave enviada no header `X-API-Key` apenas nas chamadas backend-to-backend |
+| `RATE_LIMIT_MAX_REQUESTS` | `api.security.rate-limit.max-tentativas` | Limite de requisições por IP em 15 min em `/auth/*` (padrão: `10`; a suíte E2E usa `200`) |
 
 > **Importante:** Nunca usar `@Value("${NOME_VARIAVEL_ENV}")` diretamente no código Java. Sempre mapear em `application.properties` primeiro e usar `@Value("${propriedade.spring}")`.
 
@@ -135,6 +136,9 @@ npm run dev
 
 # Executar testes automatizados (29 testes)
 npm test
+
+# Testes E2E com Playwright (7 testes; sobe backend e frontend sozinho, ver docs/TESTES.md)
+npm run test:e2e
 
 # Type check
 npm run check

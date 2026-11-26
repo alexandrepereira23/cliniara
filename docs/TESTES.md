@@ -9,7 +9,8 @@ Validado nesta revisao documental:
 - Backend: **206 testes passando** com `./mvnw test` em `backend/`.
 - Frontend: **29 testes passando** com `npm test` em `frontend/`.
 - Frontend audit: **0 vulnerabilidades** reportadas em `npm audit` (corrigido com seguranca via `npm audit fix`).
-- CI/CD (`.github/workflows/deploy.yml`): executa automaticamente `./mvnw --batch-mode test`, `npm test`, `npm run check` e `npm run build` em todo push ou Pull Request para `main` antes de liberar o deploy na VPS.
+- E2E (Playwright + Chromium): **7 testes passando** com `npm run test:e2e` em `frontend/` (validado localmente no modo H2; o modo MySQL + Flyway roda no CI).
+- CI/CD (`.github/workflows/deploy.yml`): o job `test` executa `./mvnw --batch-mode test`, `npm test`, `npm run check` e `npm run build`; o job `e2e` (MySQL 8.0 real + Flyway `V1`–`V25`) executa `npm run test:e2e`. O `deploy` na VPS depende dos dois (`needs: [test, e2e]`).
 
 ## Comandos
 
@@ -65,7 +66,25 @@ npm run build
 npm audit
 ```
 
-`npm test` executa Vitest + Testing Library. `npm run check` executa `tsc --noEmit`. `npm run build` executa typecheck incremental (`tsc -b`) e build Vite.
+`npm test` executa Vitest + Testing Library (ignora `e2e/**`). `npm run check` executa `tsc --noEmit`. `npm run build` executa typecheck incremental (`tsc -b`) e build Vite.
+
+### E2E (Playwright)
+
+```bash
+cd frontend
+npm install
+npx playwright install chromium   # apenas na primeira vez
+npm run test:e2e                  # headless
+npm run test:e2e:headed           # navegador visivel
+npm run test:e2e:ui               # modo interativo
+```
+
+`playwright.config.ts` sobe backend (`:8080`) e frontend (`:5173`) automaticamente e reaproveita servidores ja ativos fora do CI. O banco e escolhido assim:
+
+- MySQL acessivel em `DB_HOST:DB_PORT` (padrao `127.0.0.1:3307`, por exemplo via `docker compose --env-file backend/.env up -d db`): `spring-boot:run` com Flyway real.
+- Sem MySQL: `spring-boot:test-run` com H2 em memoria (`E2eApplication`). Para forcar um modo, use `E2E_DB_MODE=mysql` ou `E2E_DB_MODE=h2`.
+
+Variaveis uteis: `E2E_ADMIN_LOGIN`/`E2E_ADMIN_PASSWORD` (padrao `admin@vollmed.com`/`admin123`), `CEP_STUB_PORT` (padrao `18081`) e `RATE_LIMIT_MAX_REQUESTS` (padrao `200` no E2E; `10` em producao).
 
 ## Estrategia de Testes Backend
 
@@ -152,15 +171,23 @@ Flyway fica desabilitado nos testes porque algumas migrations usam sintaxe espec
 
 A suite atual usa H2 para contexto Spring e mocks para clientes externos. A integracao CEP possui testes unitarios/service/client, mas nao sobe um servidor real do `Consultar-Cep`. O lock pessimista do vinculo medico-usuario tambem esta coberto por teste unitario, nao por uma corrida real em MySQL.
 
+## Testes E2E (Playwright)
+
+Specs em `frontend/e2e/`, executados em serie (1 worker) contra o mesmo banco:
+
+| Arquivo | Testes | Cobertura principal |
+|---|---:|---|
+| `auth-rbac.spec.ts` | 2 | Login com credenciais invalidas; `ROLE_ADMIN` redirecionado para `/users`, sidebar restrita, bloqueio de `/doctors` e logout |
+| `clinic-smoke.spec.ts` | 5 | Admin cria funcionario; funcionario cria especialidade e medico com busca de CEP; disponibilidade e paciente com busca de CEP; agendamento (bloqueio fora da disponibilidade e sucesso no horario valido); admin vincula usuario medico e `ROLE_MEDICO` ve a consulta e o menu `IA clinica` |
+
+A busca de CEP usa um stub HTTP local (`e2e/support/cepStubServer.ts`) no lugar do `Consultar-Cep`. O stub exige o header `X-API-Key`, entao os testes tambem comprovam que o backend injeta a chave na chamada backend-to-backend. Os dados de cada execucao (e-mails, CRM, CPF valido, especialidade) sao gerados por `e2e/support/testData.ts`, o que permite repetir a suite no mesmo banco.
+
 ## Pendencias de Teste
 
-- Criar testes de integracao com MySQL real / Testcontainers validando a execucao das migrations Flyway (`V1`–`V25`) em banco limpo e concorrencia real no vinculo medico-usuario e agendamento.
-- Criar E2E smoke tests para login e redirecionamento por perfil.
-- Cobrir navegacao principal por perfil via E2E.
-- Cobrir cadastro de medico via UI com busca de CEP.
-- Cobrir cadastro de paciente via UI com busca de CEP.
-- Cobrir agendamento de consulta via UI.
+- Criar testes de integracao com MySQL real / Testcontainers validando concorrencia real no vinculo medico-usuario e agendamento (as migrations Flyway `V1`–`V25` ja sao exercitadas pelo job `e2e` do CI).
+- Ampliar o E2E para `ROLE_AUDITOR`/`ROLE_GESTOR` (auditoria LGPD), prontuario, prescricao e atestado.
 - Cobrir fluxo completo de consulta quando os estados adicionais forem implementados.
+- Validar o job `e2e` do GitHub Actions na primeira execucao real (so o modo H2 foi rodado localmente).
 
 ## Troubleshooting Docker Local
 

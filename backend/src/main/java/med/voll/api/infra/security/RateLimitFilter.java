@@ -4,6 +4,8 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
@@ -17,10 +19,20 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 public class RateLimitFilter extends OncePerRequestFilter {
 
-    private static final int LIMITE_TENTATIVAS = 10;
+    private static final int LIMITE_PADRAO = 10;
     private static final long JANELA_SEGUNDOS = 15 * 60L; // 15 minutos
 
+    private final int limiteTentativas;
     private final Map<String, LinkedList<Instant>> registros = new ConcurrentHashMap<>();
+
+    public RateLimitFilter() {
+        this(LIMITE_PADRAO);
+    }
+
+    @Autowired
+    public RateLimitFilter(@Value("${api.security.rate-limit.max-tentativas:10}") int limiteTentativas) {
+        this.limiteTentativas = limiteTentativas;
+    }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
@@ -40,7 +52,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         synchronized (tentativas) {
             tentativas.removeIf(t -> t.isBefore(limite));
 
-            if (tentativas.size() >= LIMITE_TENTATIVAS) {
+            if (tentativas.size() >= limiteTentativas) {
                 response.setStatus(429);
                 response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                 response.getWriter().write(

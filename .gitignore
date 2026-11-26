@@ -54,3 +54,6 @@ frontend/dist/
 frontend/.vite/
 frontend/*.local
 frontend/*.tsbuildinfo
+frontend/playwright-report/
+frontend/test-results/
+frontend/e2e/.auth/

@@ -84,14 +84,14 @@ Rotas principais em `frontend/src/App.tsx`:
 
 - **Endpoints do backend ainda sem fluxo na UI:** edicao/detalhamento/inativacao de prontuario (`PUT /prontuarios`, `GET /prontuarios/{id}`, `DELETE /prontuarios/{id}`), campos `consultaOrigemId` e `canceladoPor` na tela de consultas, e auditoria filtrada por `PRESCRICAO`/`ATESTADO` (`GET /auditoria/{recursoTipo}/{recursoId}`).
 - **Busca e indicadores client-side:** os filtros de busca nas listagens atuam apenas sobre a pagina atual carregada (`size=10`), e seletores auxiliares buscam os primeiros `100` registros.
-- **Ausencia de testes com MySQL real e E2E:** a suite backend usa H2 com `flyway.enabled=false` (nao testa migrations MySQL nem locks sob concorrencia real) e ainda nao ha testes E2E em navegador.
+- **Testes com MySQL real limitados ao E2E:** a suite backend usa H2 com `flyway.enabled=false` (nao testa locks sob concorrencia real). As migrations MySQL e a jornada principal sao exercitadas pelos 7 testes E2E (Playwright), que rodam com MySQL no CI; localmente foram validados apenas no modo H2.
 - **Privacidade clinica e ciclo de conta medica:** `ROLE_FUNCIONARIO` ainda possui leitura operacional completa de prontuarios/prescricoes/atestados, e usuarios `ROLE_MEDICO` continuam autenticando se o cadastro medico for inativado posteriormente.
 
 ## Proximas Fases Recomendadas
 
 As pendencias detalhadas estao priorizadas em `docs/BACKLOG.md`:
 
-1. Implementar E2E smoke tests cobrindo login, navegacao por perfil, cadastros com CEP e agendamento, e limpar arquivos legados sem uso no frontend.
+1. Limpar arquivos legados sem uso no frontend e ampliar o E2E (auditoria, fluxo clinico).
 2. Fechar lacunas de integridade clinica (validacoes de retorno, duracao/conflito de agenda e elegibilidade do convenio do paciente) e conectar na UI os endpoints ja existentes no backend.
 3. Evoluir o ciclo completo de status da consulta e revisar permissoes sensiveis de `ROLE_FUNCIONARIO` e `ROLE_MEDICO` inativo.
 4. Adicionar filtros/agregacoes server-side, code splitting no frontend e testes de integracao com MySQL/Testcontainers.

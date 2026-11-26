@@ -24,6 +24,7 @@ npm run dev
 npm test
 npm run check
 npm run build
+npm run test:e2e   # Playwright; sobe backend e frontend sozinho (ver docs/TESTES.md)
 ```
 
 ## Architecture
@@ -51,7 +52,8 @@ V1–V25 applied (next: V26)
 
 206 tests passing no backend. Run from `backend/`: `./mvnw test`
 29 tests passing no frontend. Run from `frontend/`: `npm test`
-CI workflow (`.github/workflows/deploy.yml`) runs backend tests, frontend tests, `npm run check`, and `npm run build` on every push/PR to `main`.
+7 E2E tests (Playwright, `frontend/e2e/`): `npm run test:e2e` from `frontend/`.
+CI workflow (`.github/workflows/deploy.yml`) runs backend tests, frontend tests, `npm run check`, `npm run build` (job `test`) and the E2E suite against MySQL 8.0 (job `e2e`) on every push/PR to `main`; deploy requires both.
 
 - Unit/context/security/client: `ApiApplicationTests` (1), `ExclusaoLogicaPersistenciaIntegrationTest` (2), `AgendaDeConsultasTest` (17), `ProntuarioServiceTest` (7), `EspecialidadeServiceTest` (8), `UsuarioServiceTest` (11), `IaServiceTest` (6), `AuditoriaProntuarioAspectTest` (2), `SecurityFillterTest` (3), `ConsultaCepServiceTest` (10), `RestClientCepClientTest` (7)
 - Controller (`@WebMvcTest`): `ConsultaControllerTest` (7), `MedicoControllerTest` (8), `PacientesControllerTest` (10), `ProntuarioControllerTest` (21), `PrescricaoControllerTest` (10), `AtestadoControllerTest` (10), `EspecialidadeControllerTest` (10), `AutenticacaoControllerTest` (16), `ConvenioControllerTest` (10), `ConvenioPacienteControllerTest` (6), `MedicoConvenioControllerTest` (6), `DisponibilidadeMedicoControllerTest` (6), `AuditoriaControllerTest` (4), `EnderecoControllerTest` (8)
@@ -71,3 +73,4 @@ CI workflow (`.github/workflows/deploy.yml`) runs backend tests, frontend tests,
 - `SecurityFillter` and `RateLimitFilter` have `FilterRegistrationBean` disabling auto-registration — never remove them (Spring Security 6.5+ requirement)
 - `ANTHROPIC_API_KEY` required for `/ia/*` endpoints — app starts without it but calls fail at runtime
 - IA endpoints are `ROLE_MEDICO` only — do not change to broader roles
+- `RATE_LIMIT_MAX_REQUESTS` (default `10`) controls the `/auth/*` rate limit; the E2E suite raises it to `200`. Keep the default in production
