@@ -43,8 +43,10 @@ import type {
   ConsultaListagem,
   ConsultaAgendamento,
   ConsultaCancelamento,
+  CanceladoPor,
   MotivoCancelamento,
   Prioridade,
+  TipoConsulta,
   MedicoListagem,
   PacienteListagem,
   ConvenioListagem,
@@ -62,10 +64,20 @@ const prioridadeBadge: Record<Prioridade, 'success' | 'warning' | 'error'> = {
   URGENCIA: 'error',
 };
 
+const tipoLabel: Record<TipoConsulta, string> = {
+  NORMAL: 'Normal',
+  RETORNO: 'Retorno',
+};
+
 const motivoLabel: Record<MotivoCancelamento, string> = {
   PACIENTE_DESISTIU: 'Paciente desistiu',
   MEDICO_CANCELOU: 'Médico cancelou',
   OUTROS: 'Outros',
+};
+
+const canceladoPorLabel: Record<CanceladoPor, string> = {
+  PACIENTE: 'Paciente',
+  CLINICA: 'Clínica',
 };
 
 interface ScheduleForm {
@@ -75,6 +87,7 @@ interface ScheduleForm {
   timeInput: string
   prioridade: Prioridade | ''
   convenioId: string
+  consultaOrigemId: string
 }
 
 const emptyScheduleForm = (): ScheduleForm => ({
@@ -84,6 +97,7 @@ const emptyScheduleForm = (): ScheduleForm => ({
   timeInput: '',
   prioridade: '',
   convenioId: '',
+  consultaOrigemId: '',
 });
 
 export default function Appointments() {
@@ -91,6 +105,7 @@ export default function Appointments() {
   const allowWrite = canWrite(user?.role);
 
   const [appointments, setAppointments] = useState<ConsultaListagem[]>([]);
+  const [activeConsultasForReturn, setActiveConsultasForReturn] = useState<ConsultaListagem[]>([]);
   const [doctors, setDoctors] = useState<MedicoListagem[]>([]);
   const [patients, setPatients] = useState<PacienteListagem[]>([]);
   const [convenios, setConvenios] = useState<ConvenioListagem[]>([]);
@@ -108,22 +123,31 @@ export default function Appointments() {
   const [isCancelOpen, setIsCancelOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<ConsultaListagem | null>(null);
   const [cancelMotivo, setCancelMotivo] = useState<MotivoCancelamento | ''>('');
+  const [canceladoPor, setCanceladoPor] = useState<CanceladoPor | 'none'>('none');
   const [cancelling, setCancelling] = useState(false);
 
   const fetchAll = async (p = page) => {
     setLoading(true);
     try {
-      const [appts, docs, pats, convs] = await Promise.all([
-        consultasApi.list(p),
-        medicosApi.list(0, 100),
-        pacientesApi.list(0, 100),
-        conveniosApi.listAll(),
-      ]);
-      setAppointments(appts.content);
-      setTotalPages(appts.totalPages);
-      setDoctors(docs.content);
-      setPatients(pats.content);
-      setConvenios(convs);
+      if (allowWrite) {
+        const [appts, allActive, docs, pats, convs] = await Promise.all([
+          consultasApi.list(p),
+          consultasApi.list(0, 100),
+          medicosApi.list(0, 100),
+          pacientesApi.list(0, 100),
+          conveniosApi.listAll(),
+        ]);
+        setAppointments(appts.content);
+        setTotalPages(appts.totalPages);
+        setActiveConsultasForReturn(allActive.content);
+        setDoctors(docs.content);
+        setPatients(pats.content);
+        setConvenios(convs);
+      } else {
+        const appts = await consultasApi.list(p);
+        setAppointments(appts.content);
+        setTotalPages(appts.totalPages);
+      }
     } catch {
       toast.error('Erro ao carregar dados');
     } finally {
@@ -133,7 +157,7 @@ export default function Appointments() {
 
   useEffect(() => {
     fetchAll(page);
-  }, [page]);
+  }, [page, allowWrite]);
 
   const filteredAppointments = search.trim()
     ? appointments.filter(a =>
@@ -141,6 +165,47 @@ export default function Appointments() {
           .some(v => v?.toLowerCase().includes(search.toLowerCase()))
       )
     : appointments;
+
+  const selectedPatientIdNum = Number(scheduleForm.idPaciente);
+  const activeReturnOriginIds = new Set(
+    activeConsultasForReturn
+      .map(c => c.consultaOrigemId)
+      .filter((id): id is number => id != null)
+  );
+  const eligibleOriginConsultas = selectedPatientIdNum
+    ? activeConsultasForReturn.filter(c => {
+        if (c.tipo !== 'NORMAL') return false;
+        if (c.idPaciente != null && c.idPaciente !== selectedPatientIdNum) return false;
+        if (activeReturnOriginIds.has(c.id)) return false;
+        const diffDays = (Date.now() - new Date(c.dataHora).getTime()) / (24 * 60 * 60 * 1000);
+        return diffDays <= 30;
+      })
+    : [];
+
+  const isReturnSelected =
+    Boolean(scheduleForm.consultaOrigemId) && scheduleForm.consultaOrigemId !== 'none';
+
+  const handlePacienteChange = (patientId: string) => {
+    setScheduleForm(prev => ({
+      ...prev,
+      idPaciente: patientId,
+      consultaOrigemId: '',
+      ...(prev.consultaOrigemId && prev.consultaOrigemId !== 'none' ? { idMedico: '' } : {}),
+    }));
+  };
+
+  const handleConsultaOrigemChange = (value: string) => {
+    if (!value || value === 'none') {
+      setScheduleForm(prev => ({ ...prev, consultaOrigemId: '' }));
+      return;
+    }
+    const origem = eligibleOriginConsultas.find(c => String(c.id) === value);
+    setScheduleForm(prev => ({
+      ...prev,
+      consultaOrigemId: value,
+      ...(origem?.idMedico != null ? { idMedico: String(origem.idMedico) } : {}),
+    }));
+  };
 
   const handleSchedule = async () => {
     if (!scheduleForm.idPaciente || !scheduleForm.dateInput || !scheduleForm.timeInput) {
@@ -159,10 +224,11 @@ export default function Appointments() {
         data: isoData,
         ...(scheduleForm.idMedico && scheduleForm.idMedico !== 'none' && { idMedico: Number(scheduleForm.idMedico) }),
         ...(scheduleForm.prioridade && { prioridade: scheduleForm.prioridade }),
+        ...(isReturnSelected && { consultaOrigemId: Number(scheduleForm.consultaOrigemId) }),
         ...(scheduleForm.convenioId && scheduleForm.convenioId !== 'none' && { convenioId: Number(scheduleForm.convenioId) }),
       };
       await consultasApi.schedule(payload);
-      toast.success('Consulta agendada com sucesso');
+      toast.success(isReturnSelected ? 'Retorno agendado com sucesso' : 'Consulta agendada com sucesso');
       setIsScheduleOpen(false);
       setScheduleForm(emptyScheduleForm());
       setPage(0);
@@ -177,6 +243,7 @@ export default function Appointments() {
   const handleOpenCancel = (apt: ConsultaListagem) => {
     setCancelTarget(apt);
     setCancelMotivo('');
+    setCanceladoPor('none');
     setIsCancelOpen(true);
   };
 
@@ -190,6 +257,7 @@ export default function Appointments() {
       const payload: ConsultaCancelamento = {
         idConsulta: cancelTarget.id,
         motivo: cancelMotivo,
+        ...(canceladoPor !== 'none' && { canceladoPor }),
       };
       await consultasApi.cancel(payload);
       toast.success('Consulta cancelada com sucesso');
@@ -265,12 +333,17 @@ export default function Appointments() {
                             {prioridadeLabel[apt.prioridade]}
                           </Badge>
                         </TableCell>
-                        <TableCell>{apt.tipo}</TableCell>
+                        <TableCell>
+                          {apt.tipo === 'RETORNO' && apt.consultaOrigemId
+                            ? `Retorno (#${apt.consultaOrigemId})`
+                            : tipoLabel[apt.tipo] ?? apt.tipo}
+                        </TableCell>
                         {allowWrite && (
                           <TableCell>
                             <Button
                               variant="ghost"
                               size="sm"
+                              aria-label="Cancelar consulta"
                               onClick={() => handleOpenCancel(apt)}
                               title="Cancelar consulta"
                             >
@@ -327,7 +400,7 @@ export default function Appointments() {
         <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Nova Consulta</DialogTitle>
-            <DialogDescription>Preencha os dados para agendar uma consulta</DialogDescription>
+            <DialogDescription>Preencha os dados para agendar uma consulta ou retorno</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-8">
@@ -338,7 +411,7 @@ export default function Appointments() {
                   <Label className="mb-1.5 block" htmlFor="idPaciente">Paciente *</Label>
                   <Select
                     value={scheduleForm.idPaciente}
-                    onValueChange={v => setScheduleForm(p => ({ ...p, idPaciente: v }))}
+                    onValueChange={handlePacienteChange}
                   >
                     <SelectTrigger id="idPaciente">
                       <SelectValue placeholder="Selecione um paciente" />
@@ -352,11 +425,47 @@ export default function Appointments() {
                     </SelectContent>
                   </Select>
                 </div>
+
                 <div className="sm:col-span-2">
-                  <Label className="mb-1.5 block" htmlFor="idMedico">Médico (opcional — se não informado, o sistema escolhe)</Label>
+                  <Label className="mb-1.5 block" htmlFor="consultaOrigemId">
+                    Retorno de consulta (opcional — em até 30 dias)
+                  </Label>
+                  <Select
+                    value={scheduleForm.consultaOrigemId || 'none'}
+                    onValueChange={handleConsultaOrigemChange}
+                    disabled={!scheduleForm.idPaciente}
+                  >
+                    <SelectTrigger id="consultaOrigemId">
+                      <SelectValue
+                        placeholder={
+                          !scheduleForm.idPaciente
+                            ? 'Selecione o paciente primeiro'
+                            : 'Consulta normal (sem vínculo de retorno)'
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Consulta normal (sem vínculo de retorno)</SelectItem>
+                      {eligibleOriginConsultas.map(origem => {
+                        const { date, time } = formatDateTime(origem.dataHora);
+                        return (
+                          <SelectItem key={origem.id} value={String(origem.id)}>
+                            Consulta #{origem.id} — {origem.nomeMedico} ({date} às {time})
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="sm:col-span-2">
+                  <Label className="mb-1.5 block" htmlFor="idMedico">
+                    Médico {isReturnSelected ? '(vinculado à consulta original)' : '(opcional — se não informado, o sistema escolhe)'}
+                  </Label>
                   <Select
                     value={scheduleForm.idMedico}
                     onValueChange={v => setScheduleForm(p => ({ ...p, idMedico: v }))}
+                    disabled={isReturnSelected}
                   >
                     <SelectTrigger id="idMedico">
                       <SelectValue placeholder="Qualquer médico disponível" />
@@ -370,7 +479,13 @@ export default function Appointments() {
                       ))}
                     </SelectContent>
                   </Select>
+                  {isReturnSelected && (
+                    <p className="mt-1.5 text-xs text-muted-foreground">
+                      Retorno vinculado automaticamente ao médico da consulta original.
+                    </p>
+                  )}
                 </div>
+
                 <div>
                   <Label className="mb-1.5 block" htmlFor="dateInput">Data *</Label>
                   <Input
@@ -467,6 +582,26 @@ export default function Appointments() {
                   {(Object.keys(motivoLabel) as MotivoCancelamento[]).map(m => (
                     <SelectItem key={m} value={m}>
                       {motivoLabel[m]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="mb-1.5 block" htmlFor="canceladoPor">Solicitado por (opcional)</Label>
+              <Select
+                value={canceladoPor}
+                onValueChange={v => setCanceladoPor(v as CanceladoPor | 'none')}
+              >
+                <SelectTrigger id="canceladoPor">
+                  <SelectValue placeholder="Não informado" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Não informado</SelectItem>
+                  {(Object.keys(canceladoPorLabel) as CanceladoPor[]).map(origem => (
+                    <SelectItem key={origem} value={origem}>
+                      {canceladoPorLabel[origem]}
                     </SelectItem>
                   ))}
                 </SelectContent>

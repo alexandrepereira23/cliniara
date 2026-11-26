@@ -6,23 +6,6 @@ Este arquivo centraliza melhorias futuras, correcoes tecnicas mapeadas, pendenci
 
 ## Prioridade Alta
 
-### Correcoes Tecnicas de Integridade (Backend & Frontend)
-
-- **Limpeza de codigo legado no frontend:** remover artefatos de template nao importados pelas rotas ativas (`frontend/src/lib/mockData.ts`, `frontend/src/pages/Home.tsx`, `frontend/src/components/ManusDialog.tsx` e `frontend/src/components/Map.tsx`).
-
-### Alinhamento de Funcionalidades Backend -> Frontend
-
-- **Prontuarios (`/medical-records`):** adicionar visualizacao detalhada (`GET /prontuarios/{id}`), edicao pelo medico dentro da janela de 24h (`PUT /prontuarios`) e inativacao para auditor/gestor (`DELETE /prontuarios/{id}`).
-- **Consultas (`/appointments`):** expor selecao de `consultaOrigemId` para agendamento de retorno e campo `canceladoPor` (`PACIENTE` | `CLINICA`) no modal de cancelamento.
-- **Auditoria (`/audit`):** expor consulta de trilha por tipo de recurso clinico (`GET /auditoria/{recursoTipo}/{recursoId}` para `PRONTUARIO`, `PRESCRICAO` e `ATESTADO`).
-- **Revisao de navegacao para `ROLE_AUDITOR` e `ROLE_GESTOR`:** alinhar rotas acessiveis no frontend com o escopo de leitura definido para cada perfil.
-
-### Ampliar Cobertura E2E
-
-- Navegacao de `ROLE_AUDITOR`/`ROLE_GESTOR` e consulta de auditoria LGPD.
-- Fluxo clinico completo: prontuario, prescricao e atestado pelo `ROLE_MEDICO`.
-- Confirmar o job `e2e` do GitHub Actions na primeira execucao real (MySQL + Flyway).
-
 ### Ciclo Completo da Consulta
 
 Implementar e validar estados adicionais da consulta com trilha de quem alterou e quando:
@@ -108,3 +91,6 @@ O bloqueio imediato de login (`403`) e de JWT ativo (`401`) para `ROLE_MEDICO` i
 - Integridade clinica da agenda e disponibilidade: regras completas de retorno (`consultaOrigemId` com mesmo paciente, mesmo medico/auto-atribuicao, `data > origem`, limite de 30 dias e novo retorno apos cancelamento), elegibilidade de convenio `PLANO` (vinculo ativo e validade da carteirinha) vs `PARTICULAR`, reativacao de vinculo `convenio_pacientes` sem violar unicidade, e validacao de `horaInicio < horaFim` e nao sobreposicao de horarios de disponibilidade.
 - Privacidade clinica para `ROLE_FUNCIONARIO`: bloqueio de leitura em `/prontuarios/**` (`403`) e restricao de `/medical-records` a `ROLE_MEDICO`, criacao de `GET /prescricoes/paciente/{pacienteId}` e adaptacao de `Prescriptions.tsx`, `Certificates.tsx` e `FuncionarioDashboard.tsx` sem expor diagnosticos.
 - Bloqueio imediato de conta `ROLE_MEDICO` com medico inativado: `403` no login (`DisabledException`) e `401` imediato em JWTs ja emitidos no `SecurityFillter`.
+- Alinhamento completo Backend -> Frontend: detalhamento (`GET /prontuarios/{id}`), edicao em 24h (`PUT /prontuarios`) e inativacao administrativa (`DELETE /prontuarios/{id}`) em `MedicalRecords.tsx`; agendamento de retorno (`consultaOrigemId` + campos de apoio em `DadosListagemConsulta`) e `canceladoPor` em `Appointments.tsx`; consulta LGPD por recurso clinico (`GET /auditoria/{recursoTipo}/{recursoId}`) em `Audit.tsx`.
+- Navegacao somente-leitura alinhada para `ROLE_AUDITOR` e `ROLE_GESTOR` (mantendo `/audit` como home inicial e liberando consulta de modulos operacionais/clinicos) + remocao dos 4 arquivos legados de template (`mockData.ts`, `Home.tsx`, `ManusDialog.tsx`, `Map.tsx`).
+- Expansao da cobertura automatizada: +9 testes Vitest (`MedicalRecords.test.tsx`, `Appointments.test.tsx`, `Audit.test.tsx`) e +2 cenarios E2E Playwright (prontuario/edicao/prescricao por `ROLE_MEDICO` e auditoria/inativacao por `ROLE_AUDITOR`).

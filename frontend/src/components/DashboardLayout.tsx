@@ -58,7 +58,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const navItems = allNavItems.filter(item => {
     if (user?.role === 'ROLE_ADMIN') return item.href === '/users';
-    if (user?.role === 'ROLE_AUDITOR' || user?.role === 'ROLE_GESTOR') return item.href === '/audit';
+    if (user?.role === 'ROLE_AUDITOR' || user?.role === 'ROLE_GESTOR') {
+      return !['/', '/users', '/clinical-ai'].includes(item.href);
+    }
     if (user?.role === 'ROLE_MEDICO') return !['/users', '/specialties', '/insurance', '/audit'].includes(item.href);
     return !['/users', '/audit', '/clinical-ai', '/medical-records'].includes(item.href);
   });

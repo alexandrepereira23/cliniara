@@ -15,7 +15,7 @@ Frontend SPA em React 19 + TypeScript 5.6 + Vite 7. A comunicação com o backen
 - Sonner para notificações (toasts)
 - Recharts para gráficos e Framer Motion para transições pontuais
 - Lucide React para ícones
-- Vitest + Testing Library para testes automatizados (`30` testes passando)
+- Vitest + Testing Library para testes automatizados (`39` testes passando)
 
 ## Estrutura Real
 
@@ -27,7 +27,7 @@ frontend/src/
 │   └── ui/            # Primitivos Radix/shadcn + Pagination e Spinner
 ├── contexts/          # AuthContext, ThemeContext
 ├── hooks/             # useAuth, useMobile, useComposition, usePersistFn
-├── lib/               # authSession, rbac, utils (e mockData legado não utilizado)
+├── lib/               # authSession, rbac, utils
 ├── pages/             # Páginas de rota e testes de integração de tela
 ├── test/              # setup.ts e utilitários de token para Vitest
 ├── types/             # Tipos de auth, contratos de API e auditoria
@@ -55,7 +55,7 @@ Arquivos atuais em `frontend/src/api/`:
 - `medicos.ts` — CRUD e listagem paginada de médicos.
 - `pacientes.ts` — CRUD e listagem paginada de pacientes.
 - `consultas.ts` — agendamento, listagem paginada e cancelamento de consultas.
-- `prontuarios.ts` — listagem geral/por paciente, detalhamento e criação de prontuários.
+- `prontuarios.ts` — listagem geral/por paciente, detalhamento, criação, edição (24h) e inativação administrativa de prontuários.
 - `prescricoes.ts` — criação, detalhamento e listagem de prescrições por paciente (`GET /prescricoes/paciente/{pacienteId}`) e por prontuário.
 - `atestados.ts` — emissão, detalhamento e histórico de atestados por paciente.
 - `especialidades.ts` — CRUD e listagem de especialidades.
@@ -63,7 +63,7 @@ Arquivos atuais em `frontend/src/api/`:
 - `disponibilidade.ts` — cadastro, listagem e inativação de horários de médicos.
 - `medicoConvenios.ts` — vínculo, listagem e desvínculo de convênios aceitos por médicos.
 - `convenioPaciente.ts` — associação, listagem paginada e remoção de convênios de pacientes.
-- `auditoria.ts` — consulta paginada de logs de auditoria LGPD por prontuário.
+- `auditoria.ts` — consulta paginada de logs de auditoria LGPD por prontuário e por recurso clínico (`PRONTUARIO`, `PRESCRICAO`, `ATESTADO`).
 - `ia.ts` — pré-diagnóstico, geração de laudo e resumo histórico (`ROLE_MEDICO`).
 
 ## Autenticação e Sessão
@@ -79,12 +79,12 @@ Rotas atuais em `src/App.tsx`:
 | Path | Página | Guarda |
 |------|--------|--------|
 | `/login` | `Login` | Pública |
-| `/` | `Dashboard` | `NonAdminRoute` (`ROLE_ADMIN` → `/users`; `ROLE_AUDITOR`/`ROLE_GESTOR` → `/audit`) |
+| `/` | `Dashboard` | `DashboardRoute` (`ROLE_ADMIN` → `/users`; `ROLE_AUDITOR`/`ROLE_GESTOR` → `/audit`) |
 | `/users` | `Users` | `AdminRoute` — apenas `ROLE_ADMIN` (demais perfis redirecionam para `/`) |
 | `/doctors` | `Doctors` | `NonAdminRoute` |
 | `/patients` | `Patients` | `NonAdminRoute` |
 | `/appointments` | `Appointments` | `NonAdminRoute` |
-| `/medical-records` | `MedicalRecords` | `MedicoRoute` — apenas `ROLE_MEDICO` |
+| `/medical-records` | `MedicalRecords` | `ProntuarioRoute` — `ROLE_MEDICO`, `ROLE_AUDITOR` e `ROLE_GESTOR` |
 | `/prescriptions` | `Prescriptions` | `NonAdminRoute` |
 | `/certificates` | `Certificates` | `NonAdminRoute` |
 | `/specialties` | `Specialties` | `NonAdminRoute` |
@@ -94,27 +94,26 @@ Rotas atuais em `src/App.tsx`:
 | `/clinical-ai` | `ClinicalAI` | `MedicoRoute` — apenas `ROLE_MEDICO` |
 | `/404` / fallback | `NotFound` | Pública |
 
-A segurança efetiva é aplicada pelo backend (`@PreAuthorize` + filtros de ownership nos services). As guardas do frontend e `src/lib/rbac.ts` (`canWrite`, etc.) atuam apenas para UX e exibição condicional de botões.
+A segurança efetiva é aplicada pelo backend (`@PreAuthorize` + filtros de ownership nos services). As guardas do frontend e `src/lib/rbac.ts` (`canWrite`, `canInactivateProntuario`, `canReadPatientConvenios`, etc.) atuam apenas para UX e exibição condicional de botões.
 
 ## RBAC na Sidebar (`DashboardLayout.tsx`)
 
 - `ROLE_ADMIN`: vê apenas `/users`.
-- `ROLE_AUDITOR` e `ROLE_GESTOR`: veem apenas `/audit` na navegação atual.
+- `ROLE_AUDITOR` e `ROLE_GESTOR`: iniciam em `/audit` e veem todos os módulos de leitura clínica/operacional (`/audit`, `/medical-records`, `/prescriptions`, `/certificates`, `/appointments`, `/patients`, `/doctors`, `/availability`, `/specialties`, `/insurance`), ocultando `/`, `/users` e `/clinical-ai`.
 - `ROLE_MEDICO`: vê módulos clínicos/agenda (incluindo `/clinical-ai`), ocultando `/users`, `/specialties`, `/insurance` e `/audit`.
 - `ROLE_FUNCIONARIO`: vê módulos operacionais, `/prescriptions` e `/certificates` (sem expor prontuários/diagnósticos), ocultando `/medical-records`, `/users`, `/audit` e `/clinical-ai`.
 
-## Estado Atual das Páginas e Artefatos Legados
+## Estado Atual das Páginas
 
-Todas as páginas listadas no roteador consomem exclusivamente a API real:
+Todas as páginas listadas no roteador consomem exclusivamente a API real (artefatos legados de template foram removidos):
 
 - `Dashboard` (`FuncionarioDashboard` e `MedicoDashboard`), `Users`, `Doctors`, `Patients`, `Appointments`, `MedicalRecords`, `Prescriptions`, `Certificates`, `Specialties`, `Insurance`, `Availability`, `Audit`, `ClinicalAI`.
-- **Artefatos legados sem uso nas rotas ativas:** `src/lib/mockData.ts`, `src/pages/Home.tsx`, `src/components/ManusDialog.tsx` e `src/components/Map.tsx` permanecem no repositório sem importações pelas telas reais (remoção prevista em `docs/BACKLOG.md`).
 
 ## Testes Automatizados
 
-Configurados via `vitest.config.ts` (`jsdom` + `@testing-library/react`), somando **30 testes** em 8 arquivos:
+Configurados via `vitest.config.ts` (`jsdom` + `@testing-library/react`), somando **39 testes** em 11 arquivos:
 
-- `src/api/axios.test.ts` (5), `src/api/cep.test.ts` (2), `src/contexts/AuthContext.test.tsx` (3), `src/components/dashboard/FuncionarioDashboard.test.tsx` (6), `src/pages/Users.test.tsx` (6), `src/pages/Doctors.cep.test.tsx` (3), `src/pages/Patients.cep.test.tsx` (2), `src/pages/Login.test.tsx` (3).
+- `src/api/axios.test.ts` (5), `src/api/cep.test.ts` (2), `src/contexts/AuthContext.test.tsx` (3), `src/components/dashboard/FuncionarioDashboard.test.tsx` (6), `src/pages/Users.test.tsx` (6), `src/pages/MedicalRecords.test.tsx` (4), `src/pages/Appointments.test.tsx` (3), `src/pages/Doctors.cep.test.tsx` (3), `src/pages/Login.test.tsx` (3), `src/pages/Patients.cep.test.tsx` (2), `src/pages/Audit.test.tsx` (2).
 - Validação completa de CI: `npm test`, `npm run check` (`tsc --noEmit`), `npm run build` (`tsc -b && vite build`) e `npm audit`.
 
 ## Convenções

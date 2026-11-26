@@ -98,14 +98,22 @@ class ConsultaControllerTest {
     }
 
     @Test
-    @DisplayName("ROLE_FUNCIONARIO deve listar consultas e receber 200")
+    @DisplayName("ROLE_FUNCIONARIO deve listar consultas com idMedico, idPaciente e consultaOrigemId")
     void deveListarConsultas() throws Exception {
+        var item = new DadosListagemConsulta(
+                10L, 2L, "Dra. Ana", 3L, "João", dataValida(),
+                PrioridadeConsulta.ROTINA, TipoConsulta.RETORNO, 5L
+        );
         when(consultaService.listarAtivas(any(Pageable.class), any(Usuario.class)))
-                .thenReturn(new PageImpl<>(List.of()));
+                .thenReturn(new PageImpl<>(List.of(item)));
 
         mvc.perform(get("/consultas")
                         .with(user(usuarioFuncionario())))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].id").value(10))
+                .andExpect(jsonPath("$.content[0].idMedico").value(2))
+                .andExpect(jsonPath("$.content[0].idPaciente").value(3))
+                .andExpect(jsonPath("$.content[0].consultaOrigemId").value(5));
     }
 
     @Test

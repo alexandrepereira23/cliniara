@@ -121,7 +121,7 @@ Monorepo — frontend SPA em `frontend/`.
 - **wouter** — roteamento client-side leve
 - Axios (client HTTP com interceptor JWT em `src/api/axios.ts` e base default `/api`)
 - React Hook Form + Zod v4, framer-motion, recharts, sonner, Lucide React
-- Vitest + Testing Library (30 testes automatizados)
+- Vitest + Testing Library (39 testes automatizados)
 
 ### Comandos
 
@@ -134,10 +134,10 @@ npm install
 # Dev server (http://localhost:5173 — proxy /api -> http://localhost:8080)
 npm run dev
 
-# Executar testes automatizados (30 testes)
+# Executar testes automatizados (39 testes)
 npm test
 
-# Testes E2E com Playwright (7 testes; sobe backend e frontend sozinho, ver docs/TESTES.md)
+# Testes E2E com Playwright (9 testes; sobe backend e frontend sozinho, ver docs/TESTES.md)
 npm run test:e2e
 
 # Type check
@@ -160,7 +160,7 @@ frontend/src/
 │                      # auditoria.ts, ia.ts (+ testes unitários axios.test.ts, cep.test.ts)
 ├── contexts/          # AuthContext.tsx (+ AuthContext.test.tsx), ThemeContext.tsx
 ├── hooks/             # useAuth.ts, useMobile.tsx, useComposition.ts, usePersistFn.ts
-├── lib/               # authSession.ts, rbac.ts, utils.ts (e mockData.ts legado não importado)
+├── lib/               # authSession.ts, rbac.ts, utils.ts
 ├── components/
 │   ├── dashboard/     # FuncionarioDashboard.tsx (+ test), MedicoDashboard.tsx
 │   ├── ui/            # shadcn/ui + Pagination, Spinner
@@ -168,9 +168,9 @@ frontend/src/
 ├── pages/             # Login, Dashboard, Users, Doctors, Patients, Appointments,
 │                      # MedicalRecords, Prescriptions, Certificates, Specialties,
 │                      # Insurance, Availability, Audit, ClinicalAI, NotFound
-│                      # (+ testes Login.test.tsx, Users.test.tsx, Doctors.cep.test.tsx, Patients.cep.test.tsx)
+│                      # (+ testes Login, Users, Doctors.cep, Patients.cep, MedicalRecords, Appointments, Audit)
 ├── types/             # auth.ts, api.ts, auditoria.ts
-└── App.tsx            # router wouter + guardas por perfil (AdminRoute, NonAdminRoute, AuditorRoute, MedicoRoute)
+└── App.tsx            # router wouter + guardas por perfil (AdminRoute, DashboardRoute, NonAdminRoute, ProntuarioRoute, AuditorRoute, MedicoRoute)
 ```
 
 ### Rotas
@@ -178,12 +178,12 @@ frontend/src/
 | Path | Página | Guarda no Frontend |
 |------|--------|--------------------|
 | `/login` | `Login` | Pública |
-| `/` | `Dashboard` | `NonAdminRoute` (`ROLE_ADMIN` → `/users`; `AUDITOR`/`GESTOR` → `/audit`) |
+| `/` | `Dashboard` | `DashboardRoute` (`ROLE_ADMIN` → `/users`; `AUDITOR`/`GESTOR` → `/audit`) |
 | `/users` | `Users` | `AdminRoute` (apenas `ROLE_ADMIN`) |
 | `/doctors` | `Doctors` | `NonAdminRoute` |
 | `/patients` | `Patients` | `NonAdminRoute` |
 | `/appointments` | `Appointments` | `NonAdminRoute` |
-| `/medical-records` | `MedicalRecords` | `MedicoRoute` (`ROLE_MEDICO`) |
+| `/medical-records` | `MedicalRecords` | `ProntuarioRoute` (`ROLE_MEDICO`, `ROLE_AUDITOR`, `ROLE_GESTOR`) |
 | `/prescriptions` | `Prescriptions` | `NonAdminRoute` |
 | `/certificates` | `Certificates` | `NonAdminRoute` |
 | `/specialties` | `Specialties` | `NonAdminRoute` |
@@ -195,7 +195,7 @@ frontend/src/
 
 ### Estado atual das páginas
 
-Todas as páginas das rotas ativas estão conectadas à API real. Observação: `src/lib/mockData.ts`, `src/pages/Home.tsx`, `src/components/ManusDialog.tsx` e `src/components/Map.tsx` permanecem no repositório como artefatos legados sem importação nas rotas ativas.
+Todas as páginas das rotas ativas estão conectadas à API real, e os artefatos legados de template sem uso (`mockData.ts`, `Home.tsx`, `ManusDialog.tsx`, `Map.tsx`) foram removidos.
 
 ## Deploy, Infraestrutura VPS e CORS
 

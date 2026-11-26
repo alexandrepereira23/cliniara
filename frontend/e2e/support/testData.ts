@@ -71,6 +71,8 @@ export function createClinicRunData() {
     medicoCrm: crm,
     medicoLogin: `medico.${seed}@vollmed.com`,
     medicoSenha: 'Medico@123',
+    auditorLogin: `auditor.${seed}@vollmed.com`,
+    auditorSenha: 'Auditor@123',
     pacienteNome: `Marina Paciente E2E ${seed}`,
     pacienteEmail: `marina.${seed}@email.com`,
     pacienteCpf: cpf,

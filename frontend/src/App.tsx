@@ -28,11 +28,28 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
   return <Component />;
 }
 
-function NonAdminRoute({ component: Component }: { component: React.ComponentType }) {
+function DashboardRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, user } = useAuth();
   if (!isAuthenticated) return <Redirect to="/login" />;
   if (user?.role === 'ROLE_ADMIN') return <Redirect to="/users" />;
   if (user?.role === 'ROLE_AUDITOR' || user?.role === 'ROLE_GESTOR') return <Redirect to="/audit" />;
+  return <Component />;
+}
+
+function NonAdminRoute({ component: Component }: { component: React.ComponentType }) {
+  const { isAuthenticated, user } = useAuth();
+  if (!isAuthenticated) return <Redirect to="/login" />;
+  if (user?.role === 'ROLE_ADMIN') return <Redirect to="/users" />;
+  return <Component />;
+}
+
+function ProntuarioRoute({ component: Component }: { component: React.ComponentType }) {
+  const { isAuthenticated, user } = useAuth();
+  if (!isAuthenticated) return <Redirect to="/login" />;
+  if (user?.role === 'ROLE_ADMIN') return <Redirect to="/users" />;
+  if (user?.role !== 'ROLE_MEDICO' && user?.role !== 'ROLE_AUDITOR' && user?.role !== 'ROLE_GESTOR') {
+    return <Redirect to="/" />;
+  }
   return <Component />;
 }
 
@@ -54,12 +71,12 @@ function Router() {
   return (
     <Switch>
       <Route path="/login" component={Login} />
-      <Route path="/" component={() => <NonAdminRoute component={Dashboard} />} />
+      <Route path="/" component={() => <DashboardRoute component={Dashboard} />} />
       <Route path="/users" component={() => <AdminRoute component={Users} />} />
       <Route path="/doctors" component={() => <NonAdminRoute component={Doctors} />} />
       <Route path="/patients" component={() => <NonAdminRoute component={Patients} />} />
       <Route path="/appointments" component={() => <NonAdminRoute component={Appointments} />} />
-      <Route path="/medical-records" component={() => <MedicoRoute component={MedicalRecords} />} />
+      <Route path="/medical-records" component={() => <ProntuarioRoute component={MedicalRecords} />} />
       <Route path="/prescriptions" component={() => <NonAdminRoute component={Prescriptions} />} />
       <Route path="/certificates" component={() => <NonAdminRoute component={Certificates} />} />
       <Route path="/specialties" component={() => <NonAdminRoute component={Specialties} />} />

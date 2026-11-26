@@ -10,7 +10,7 @@ Estado validado nesta revisao:
 
 - Backend completo ate a migration `V25`; proxima migration esperada: `V26`.
 - Backend com **231 testes passando** em `./mvnw test`.
-- Frontend com **30 testes passando** em `npm test` e `0` vulnerabilidades no `npm audit`.
+- Frontend com **39 testes passando** em `npm test`, **9 testes E2E Playwright** e `0` vulnerabilidades no `npm audit`.
 - Frontend conectado a API real em todas as rotas ativas.
 - Integracao CEP implementada ponta a ponta: backend gateway, `X-API-Key` restrita ao backend e autopreenchimento nos formularios de medicos e pacientes.
 - Infraestrutura de producao configurada: frontend na Vercel (`vollmed.usenexora.online`) e APIs + MySQL + Caddy HTTPS na VPS (`docker-compose.prod.yml`, `deploy/Caddyfile`, `.github/workflows/deploy.yml` e `docs/DEPLOY_VPS.md`).
@@ -60,14 +60,14 @@ Rotas principais em `frontend/src/App.tsx`:
 - `/users` — gestao de usuarios, restrita a `ROLE_ADMIN`.
 - `/doctors` — medicos, convenios aceitos, horarios e busca de CEP.
 - `/patients` — pacientes, convenios vinculados e busca de CEP.
-- `/appointments` — agendamento e cancelamento de consultas.
-- `/medical-records` — listagem e criacao de prontuarios (restrita a `ROLE_MEDICO`).
+- `/appointments` — agendamento (incluindo retorno via `consultaOrigemId`) e cancelamento (`canceladoPor`) de consultas.
+- `/medical-records` — listagem, detalhamento, criacao, edicao (janela de 24h) e inativacao administrativa (`ROLE_MEDICO`, `ROLE_AUDITOR` e `ROLE_GESTOR`).
 - `/prescriptions` — consulta de prescricoes por paciente (`GET /prescricoes/paciente/{pacienteId}`) e emissao por prontuario (`ROLE_MEDICO`).
 - `/certificates` — consulta por paciente e emissao de atestados por prontuario (`ROLE_MEDICO`).
 - `/specialties` — especialidades medicas.
 - `/insurance` — cadastro de convenios.
 - `/availability` — disponibilidade medica.
-- `/audit` — auditoria LGPD para `ROLE_AUDITOR`/`ROLE_GESTOR`.
+- `/audit` — auditoria LGPD por prontuario e por recurso clinico (`PRONTUARIO`, `PRESCRICAO`, `ATESTADO`) para `ROLE_AUDITOR`/`ROLE_GESTOR`.
 - `/clinical-ai` — IA clinica para `ROLE_MEDICO`.
 - `/404` e rota fallback — pagina nao encontrada.
 
@@ -82,16 +82,14 @@ Rotas principais em `frontend/src/App.tsx`:
 
 ## Riscos Tecnicos e Divergencias Identificadas
 
-- **Endpoints do backend ainda sem fluxo na UI:** edicao/detalhamento/inativacao de prontuario (`PUT /prontuarios`, `GET /prontuarios/{id}`, `DELETE /prontuarios/{id}`), campos `consultaOrigemId` e `canceladoPor` na tela de consultas, e auditoria filtrada por `PRESCRICAO`/`ATESTADO` (`GET /auditoria/{recursoTipo}/{recursoId}`).
 - **Busca e indicadores client-side:** os filtros de busca nas listagens atuam apenas sobre a pagina atual carregada (`size=10`), e seletores auxiliares buscam os primeiros `100` registros.
-- **Testes com MySQL real limitados ao E2E:** a suite backend usa H2 com `flyway.enabled=false` (nao testa locks sob concorrencia real). As migrations MySQL e a jornada principal sao exercitadas pelos 7 testes E2E (Playwright), que rodam com MySQL no CI; localmente foram validados apenas no modo H2.
+- **Testes com MySQL real limitados ao E2E:** a suite backend usa H2 com `flyway.enabled=false` (nao testa locks sob concorrencia real). As migrations MySQL e a jornada principal sao exercitadas pelos 9 testes E2E (Playwright), que rodam com MySQL no CI.
 - **Consultas futuras de medico inativado:** embora login (`403`) e JWTs ativos (`401`) do medico inativado ja sejam bloqueados imediatamente, o destino de consultas futuras ja agendadas ainda nao possui fluxo automatizado.
 
 ## Proximas Fases Recomendadas
 
 As pendencias detalhadas estao priorizadas em `docs/BACKLOG.md`:
 
-1. Conectar na UI os endpoints ja existentes no backend (detalhamento/edicao/inativacao de prontuario, `consultaOrigemId`/`canceladoPor` em consultas, auditoria por `PRESCRICAO`/`ATESTADO`) e remover artefatos legados do frontend.
-2. Ampliar a cobertura E2E (auditoria LGPD, fluxo clinico completo de prontuario/prescricao/atestado).
-3. Evoluir o ciclo completo de status da consulta e definir tratamento para consultas futuras de medico inativado.
-4. Adicionar filtros/agregacoes server-side, code splitting no frontend e testes de integracao com MySQL/Testcontainers.
+1. Evoluir o ciclo completo de status da consulta (`V26`: Agendada -> Confirmada -> Check-in -> Em atendimento -> Concluida / Cancelada / Ausente) e definir tratamento para consultas futuras de medico inativado.
+2. Adicionar filtros/agregacoes server-side, code splitting (`React.lazy`) no frontend e testes de integracao com MySQL/Testcontainers.
+3. Reformular o `README.md` principal como vitrine de portfolio com diagrama de arquitetura, evidencias de testes e guia de demonstracao.

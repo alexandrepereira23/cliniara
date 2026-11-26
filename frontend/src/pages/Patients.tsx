@@ -37,7 +37,7 @@ import { convenioPacienteApi } from '@/api/convenioPaciente';
 import { conveniosApi } from '@/api/convenios';
 import { cepApi } from '@/api/cep';
 import { useAuth } from '@/hooks/useAuth';
-import { canWrite } from '@/lib/rbac';
+import { canWrite, canReadPatientConvenios } from '@/lib/rbac';
 import { extractApiError } from '@/lib/utils';
 import type {
   PacienteListagem,
@@ -70,6 +70,7 @@ const emptyForm = (): FormState => ({
 export default function Patients() {
   const { user } = useAuth();
   const allowWrite = canWrite(user?.role);
+  const allowReadConvenios = canReadPatientConvenios(user?.role);
 
   const [patients, setPatients] = useState<PacienteListagem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -321,7 +322,7 @@ export default function Patients() {
                     <TableHead>Nome</TableHead>
                     <TableHead>CPF</TableHead>
                     <TableHead>E-mail</TableHead>
-                    {allowWrite && <TableHead>Ações</TableHead>}
+                    {(allowWrite || allowReadConvenios) && <TableHead>Ações</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -330,18 +331,29 @@ export default function Patients() {
                       <TableCell className="font-medium">{patient.nome}</TableCell>
                       <TableCell>{patient.cpf}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{patient.email}</TableCell>
-                      {allowWrite && (
+                      {(allowWrite || allowReadConvenios) && (
                         <TableCell>
                           <div className="flex items-center gap-2">
-                            <Button variant="ghost" size="sm" title="Gerenciar convênios" onClick={() => handleOpenConvenios(patient)}>
-                              <CreditCard className="h-4 w-4 text-primary" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleOpenModal(patient)}>
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" onClick={() => handleDelete(patient.id)}>
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
+                            {allowReadConvenios && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title={allowWrite ? 'Gerenciar convênios' : 'Ver convênios'}
+                                onClick={() => handleOpenConvenios(patient)}
+                              >
+                                <CreditCard className="h-4 w-4 text-primary" />
+                              </Button>
+                            )}
+                            {allowWrite && (
+                              <>
+                                <Button variant="ghost" size="sm" onClick={() => handleOpenModal(patient)}>
+                                  <Edit className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="sm" onClick={() => handleDelete(patient.id)}>
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </>
+                            )}
                           </div>
                         </TableCell>
                       )}
@@ -558,52 +570,54 @@ export default function Patients() {
           </DialogHeader>
 
           <div className="space-y-6">
-            <div>
-              <h3 className="text-sm font-semibold mb-4 text-foreground">Associar Convênio</h3>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                <div>
-                  <Label className="mb-1.5 block">Convênio *</Label>
-                  <Select
-                    value={convenioForm.convenioId}
-                    onValueChange={v => setConvenioForm(p => ({ ...p, convenioId: v }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {conveniosList.map(c => (
-                        <SelectItem key={c.id} value={String(c.id)}>{c.nome}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            {allowWrite && (
+              <div>
+                <h3 className="text-sm font-semibold mb-4 text-foreground">Associar Convênio</h3>
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div>
+                    <Label className="mb-1.5 block">Convênio *</Label>
+                    <Select
+                      value={convenioForm.convenioId}
+                      onValueChange={v => setConvenioForm(p => ({ ...p, convenioId: v }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {conveniosList.map(c => (
+                          <SelectItem key={c.id} value={String(c.id)}>{c.nome}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="mb-1.5 block" htmlFor="carteirinha">Carteirinha *</Label>
+                    <Input
+                      id="carteirinha"
+                      value={convenioForm.numeroCarteirinha}
+                      onChange={e => setConvenioForm(p => ({ ...p, numeroCarteirinha: e.target.value }))}
+                      placeholder="0001234567890"
+                    />
+                  </div>
+                  <div>
+                    <Label className="mb-1.5 block" htmlFor="validade">Validade</Label>
+                    <Input
+                      id="validade"
+                      type="date"
+                      value={convenioForm.validade}
+                      onChange={e => setConvenioForm(p => ({ ...p, validade: e.target.value }))}
+                    />
+                  </div>
                 </div>
-                <div>
-                  <Label className="mb-1.5 block" htmlFor="carteirinha">Carteirinha *</Label>
-                  <Input
-                    id="carteirinha"
-                    value={convenioForm.numeroCarteirinha}
-                    onChange={e => setConvenioForm(p => ({ ...p, numeroCarteirinha: e.target.value }))}
-                    placeholder="0001234567890"
-                  />
-                </div>
-                <div>
-                  <Label className="mb-1.5 block" htmlFor="validade">Validade</Label>
-                  <Input
-                    id="validade"
-                    type="date"
-                    value={convenioForm.validade}
-                    onChange={e => setConvenioForm(p => ({ ...p, validade: e.target.value }))}
-                  />
-                </div>
+                <Button
+                  className="mt-4"
+                  onClick={handleAssociarConvenio}
+                  disabled={!convenioForm.convenioId || !convenioForm.numeroCarteirinha || savingConvenio}
+                >
+                  {savingConvenio ? 'Associando...' : 'Associar'}
+                </Button>
               </div>
-              <Button
-                className="mt-4"
-                onClick={handleAssociarConvenio}
-                disabled={!convenioForm.convenioId || !convenioForm.numeroCarteirinha || savingConvenio}
-              >
-                {savingConvenio ? 'Associando...' : 'Associar'}
-              </Button>
-            </div>
+            )}
 
             <div>
               <h3 className="text-sm font-semibold mb-3 text-foreground">Convênios Associados</h3>
@@ -618,7 +632,7 @@ export default function Patients() {
                       <TableHead>Convênio</TableHead>
                       <TableHead>Carteirinha</TableHead>
                       <TableHead>Validade</TableHead>
-                      <TableHead></TableHead>
+                      {allowWrite && <TableHead></TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -631,11 +645,13 @@ export default function Patients() {
                             ? new Date(c.validade).toLocaleDateString('pt-BR')
                             : '—'}
                         </TableCell>
-                        <TableCell>
-                          <Button variant="ghost" size="sm" onClick={() => handleRemoverConvenio(c.id)}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
+                        {allowWrite && (
+                          <TableCell>
+                            <Button variant="ghost" size="sm" onClick={() => handleRemoverConvenio(c.id)}>
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>

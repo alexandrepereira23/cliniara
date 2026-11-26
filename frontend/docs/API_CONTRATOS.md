@@ -257,10 +257,10 @@ Perfis de acesso (`Role` em `src/types/auth.ts`):
 ### `POST /consultas` (`ROLE_FUNCIONARIO`)
 ```ts
 // Request (ConsultaAgendamento)
-// Nota: consultaOrigemId já existe no contrato e no backend, mas ainda não possui campo no modal de Appointments.tsx.
+// consultaOrigemId pode ser selecionado em Appointments.tsx (vincula automaticamente o médico original).
 {
   idPaciente: number,
-  idMedico?: number,           // opcional — sistema escolhe médico disponível se omitido
+  idMedico?: number,           // opcional — sistema escolhe médico disponível se omitido (no retorno assume o médico original)
   data: string,                // ISO 8601: "2026-05-15T10:00:00"
   prioridade?: 'ROTINA' | 'PRIORITARIO' | 'URGENCIA',
   consultaOrigemId?: number,   // retorno em até 30 dias
@@ -286,11 +286,14 @@ Perfis de acesso (`Role` em `src/types/auth.ts`):
 {
   content: Array<{
     id: number,
+    idMedico: number,
     nomeMedico: string,
+    idPaciente: number,
     nomePaciente: string,
     dataHora: string,
     prioridade: 'ROTINA' | 'PRIORITARIO' | 'URGENCIA',
-    tipo: 'NORMAL' | 'RETORNO'
+    tipo: 'NORMAL' | 'RETORNO',
+    consultaOrigemId: number | null
   }>,
   ...
 }
@@ -298,8 +301,7 @@ Perfis de acesso (`Role` em `src/types/auth.ts`):
 
 ### `DELETE /consultas` (`ROLE_FUNCIONARIO`)
 ```ts
-// Request (ConsultaCancelamento) — enviado no body do DELETE
-// Nota: canceladoPor é suportado pelo backend, mas ainda não exposto no modal de Appointments.tsx.
+// Request (ConsultaCancelamento) — enviado no body do DELETE (motivo + canceladoPor opcional em Appointments.tsx)
 {
   idConsulta: number,
   motivo: 'PACIENTE_DESISTIU' | 'MEDICO_CANCELOU' | 'OUTROS',
@@ -330,7 +332,7 @@ Perfis de acesso (`Role` em `src/types/auth.ts`):
 
 ### `GET /prontuarios/{id}` (`ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
 ```ts
-// Disponível em prontuariosApi.get(id), ainda sem modal de detalhamento em MedicalRecords.tsx.
+// Consumido por prontuariosApi.get(id) no modal de detalhamento e pré-carregamento de edição em MedicalRecords.tsx.
 // Response 200 — ProntuarioDetalhamento
 ```
 
@@ -339,15 +341,16 @@ Perfis de acesso (`Role` em `src/types/auth.ts`):
 // Response 200 — Page<ProntuarioListagem>
 ```
 
-### `PUT /prontuarios` (`ROLE_MEDICO`) — *Disponível no backend, pendente no frontend*
+### `PUT /prontuarios` (`ROLE_MEDICO`)
 ```ts
-// Request — edição pelo médico autor dentro da janela de 24h após criação
+// Consumido por prontuariosApi.update(data) em MedicalRecords.tsx (edição pelo médico autor dentro da janela de 24h)
 { id: number, anamnese?: string, diagnostico?: string, cid10?: string, observacoes?: string }
 // Response 200 — ProntuarioDetalhamento | Response 422 — janela de 24h expirada
 ```
 
-### `DELETE /prontuarios/{id}` (`ROLE_AUDITOR` / `ROLE_GESTOR`) — *Disponível no backend, pendente no frontend*
+### `DELETE /prontuarios/{id}` (`ROLE_AUDITOR` / `ROLE_GESTOR`)
 ```ts
+// Consumido por prontuariosApi.remove(id) com modal de confirmação em MedicalRecords.tsx
 // Response 204 — inativação lógica administrativa
 ```
 
@@ -495,8 +498,9 @@ Perfis de acesso (`Role` em `src/types/auth.ts`):
 }
 ```
 
-### `GET /auditoria/{recursoTipo}/{recursoId}` (`ROLE_AUDITOR` / `ROLE_GESTOR`) — *Disponível no backend, pendente na tela `Audit.tsx`*
+### `GET /auditoria/{recursoTipo}/{recursoId}` (`ROLE_AUDITOR` / `ROLE_GESTOR`)
 ```ts
+// Consumido por auditoriaApi.listByRecurso(recursoTipo, recursoId, page, size) na aba "Por Recurso Clínico" de Audit.tsx
 // Parâmetro recursoTipo: 'PRONTUARIO' | 'PRESCRICAO' | 'ATESTADO'
 // Response 200 — Page<AuditoriaListagem>
 ```

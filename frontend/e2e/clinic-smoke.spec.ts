@@ -213,4 +213,120 @@ test.describe.serial('Jornada Clínica Smoke E2E (Usuários, CEP, Disponibilidad
       page.getByRole('row').filter({ hasText: run.pacienteNome }).filter({ hasText: run.medicoNome }),
     ).toBeVisible()
   })
+
+  test('6. ROLE_MEDICO cria, detalha e edita prontuário em 24h e emite prescrição', async ({ page }) => {
+    await loginAs(page, run.medicoLogin, run.medicoSenha)
+    await expect(page).toHaveURL(/\/$/)
+
+    const sidebarNav = page.locator('aside nav')
+    await sidebarNav.getByRole('link', { name: 'Prontuários' }).click()
+    await expect(page).toHaveURL(/\/medical-records$/)
+
+    // Cria prontuário para a consulta agendada
+    await page.getByRole('button', { name: 'Novo Prontuário' }).first().click()
+    const createDialog = page.getByRole('dialog')
+    await createDialog.locator('#consultaId').click()
+    await page.getByRole('option', { name: new RegExp(run.pacienteNome) }).click()
+    await createDialog.locator('#diagnostico').fill('Cefaleia tensional inicial')
+    await createDialog.locator('#cid10').fill('G44.2')
+    await createDialog.locator('#anamnese').fill('Dor frontal bilateral há 2 dias')
+    await createDialog.locator('#observacoes').fill('Hidratação e acompanhamento')
+    await createDialog.getByRole('button', { name: 'Criar Prontuário' }).click()
+
+    await expect(createDialog).toBeHidden()
+    await expect(page.getByText('Prontuário criado com sucesso')).toBeVisible()
+
+    const row = page.getByRole('row').filter({ hasText: run.pacienteNome })
+    await expect(row).toBeVisible()
+
+    // Visualiza detalhes do prontuário
+    await row.getByRole('button', { name: 'Detalhar prontuário' }).click()
+    const detailDialog = page.getByRole('dialog')
+    await expect(detailDialog.getByText('Dor frontal bilateral há 2 dias')).toBeVisible()
+    await expect(detailDialog.getByText('Editável (até 24h)')).toBeVisible()
+    await detailDialog.getByRole('button', { name: 'Fechar' }).click()
+    await expect(detailDialog).toBeHidden()
+
+    // Edita o prontuário dentro da janela de 24h
+    await row.getByRole('button', { name: 'Editar prontuário' }).click()
+    const editDialog = page.getByRole('dialog')
+    await editDialog.locator('#edit-diagnostico').fill('Cefaleia tensional revisada')
+    await editDialog.getByRole('button', { name: 'Salvar Alterações' }).click()
+
+    await expect(editDialog).toBeHidden()
+    await expect(page.getByText('Prontuário atualizado com sucesso')).toBeVisible()
+    await expect(page.getByRole('row').filter({ hasText: 'Cefaleia tensional revisada' })).toBeVisible()
+
+    // Emite prescrição vinculada ao prontuário para gerar trilha de PRESCRICAO na auditoria
+    await sidebarNav.getByRole('link', { name: 'Prescrições' }).click()
+    await expect(page).toHaveURL(/\/prescriptions$/)
+
+    const comboboxes = page.getByRole('combobox')
+    await comboboxes.nth(0).click()
+    await page.getByRole('option', { name: new RegExp(run.pacienteNome) }).click()
+    await comboboxes.nth(1).click()
+    await page.getByRole('option', { name: /Cefaleia tensional revisada/i }).click()
+
+    await page.getByRole('button', { name: 'Nova Prescrição' }).click()
+    const prescDialog = page.getByRole('dialog')
+    await prescDialog.getByPlaceholder('Ex: Amoxicilina').fill('Dipirona')
+    await prescDialog.getByPlaceholder('Ex: 500mg').fill('500mg')
+    await prescDialog.getByPlaceholder('Ex: 1 cápsula a cada 8h').fill('1 comprimido a cada 8h')
+    await prescDialog.getByPlaceholder('Ex: 7 dias').fill('3 dias')
+    await prescDialog.getByRole('button', { name: 'Criar Prescrição' }).click()
+
+    await expect(prescDialog).toBeHidden()
+    await expect(page.getByText('Prescrição criada com sucesso')).toBeVisible()
+  })
+
+  test('7. ROLE_ADMIN cria ROLE_AUDITOR que audita prontuário/prescrição e inativa prontuário', async ({ page }) => {
+    await loginAs(page, ADMIN_LOGIN, ADMIN_PASSWORD)
+    await expect(page).toHaveURL(/\/users$/)
+
+    await page.getByRole('button', { name: 'Novo usuário' }).first().click()
+    const userDialog = page.getByRole('dialog')
+    await userDialog.locator('#login').fill(run.auditorLogin)
+    await userDialog.locator('#senha').fill(run.auditorSenha)
+    await userDialog.locator('#confirmarSenha').fill(run.auditorSenha)
+    await userDialog.locator('#role').click()
+    await page.getByRole('option', { name: 'Auditor', exact: true }).click()
+    await userDialog.getByRole('button', { name: 'Cadastrar' }).click()
+
+    await expect(userDialog).toBeHidden()
+    await expect(page.getByText('Usuário cadastrado com sucesso')).toBeVisible()
+
+    // Autentica como ROLE_AUDITOR (home em /audit + acesso de leitura às telas clínicas/operacionais)
+    await loginAs(page, run.auditorLogin, run.auditorSenha)
+    await expect(page).toHaveURL(/\/audit$/)
+
+    const sidebarNav = page.locator('aside nav')
+    await expect(sidebarNav.getByRole('link', { name: 'Auditoria LGPD' })).toBeVisible()
+    await expect(sidebarNav.getByRole('link', { name: 'Prontuários' })).toBeVisible()
+    await expect(sidebarNav.getByRole('link', { name: 'Consultas' })).toBeVisible()
+    await expect(sidebarNav.getByRole('link', { name: 'Usuários' })).toHaveCount(0)
+    await expect(sidebarNav.getByRole('link', { name: 'IA clínica' })).toHaveCount(0)
+
+    // Abre trilha do prontuário e inspeciona o recurso PRESCRICAO vinculado
+    await page.getByRole('row').filter({ hasText: run.pacienteNome }).click()
+    await expect(page.getByText('Histórico de acessos', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: /^Prescrição #\d+$/ }).first()).toBeVisible()
+
+    await page.getByRole('button', { name: /^Prescrição #\d+$/ }).first().click()
+    await expect(page.getByText(/Trilha de auditoria — Prescrição #\d+/)).toBeVisible()
+
+    // Navega para Prontuários em modo governança e realiza inativação lógica
+    await sidebarNav.getByRole('link', { name: 'Prontuários' }).click()
+    await expect(page).toHaveURL(/\/medical-records$/)
+
+    const pronRow = page.getByRole('row').filter({ hasText: run.pacienteNome })
+    await expect(pronRow).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Novo Prontuário' })).toHaveCount(0)
+
+    await pronRow.getByRole('button', { name: 'Inativar prontuário' }).click()
+    const confirmDialog = page.getByRole('dialog')
+    await confirmDialog.getByRole('button', { name: 'Confirmar Inativação' }).click()
+
+    await expect(confirmDialog).toBeHidden()
+    await expect(page.getByText('Prontuário inativado com sucesso')).toBeVisible()
+  })
 })

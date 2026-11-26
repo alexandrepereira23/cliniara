@@ -1,5 +1,11 @@
 import api from './axios'
-import type { Page, ProntuarioListagem, ProntuarioDetalhamento, ProntuarioCadastro } from '@/types/api'
+import type {
+  Page,
+  ProntuarioListagem,
+  ProntuarioDetalhamento,
+  ProntuarioCadastro,
+  ProntuarioAtualizacao,
+} from '@/types/api'
 
 export const prontuariosApi = {
   list: (page = 0, size = 10) =>
@@ -13,4 +19,10 @@ export const prontuariosApi = {
 
   create: (data: ProntuarioCadastro) =>
     api.post<ProntuarioDetalhamento>('/prontuarios', data).then(r => r.data),
+
+  update: (data: ProntuarioAtualizacao) =>
+    api.put<ProntuarioDetalhamento>('/prontuarios', data).then(r => r.data),
+
+  remove: (id: number) =>
+    api.delete(`/prontuarios/${id}`).then(r => r.data),
 }

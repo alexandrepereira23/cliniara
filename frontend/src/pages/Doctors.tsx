@@ -411,7 +411,7 @@ export default function Doctors() {
                     <TableHead>Especialidade</TableHead>
                     <TableHead>CRM</TableHead>
                     <TableHead>E-mail</TableHead>
-                    {allowWrite && <TableHead>Ações</TableHead>}
+                    <TableHead>Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -423,10 +423,20 @@ export default function Doctors() {
                       <TableCell className="text-sm text-muted-foreground">{doctor.email}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <Button variant="ghost" size="sm" title="Gerenciar convênios" onClick={() => handleOpenConvenios(doctor)}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title={allowWrite ? 'Gerenciar convênios' : 'Ver convênios'}
+                            onClick={() => handleOpenConvenios(doctor)}
+                          >
                             <CreditCard className="h-4 w-4 text-primary" />
                           </Button>
-                          <Button variant="ghost" size="sm" title="Gerenciar horários" onClick={() => handleOpenHorarios(doctor)}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title={allowWrite ? 'Gerenciar horários' : 'Ver horários'}
+                            onClick={() => handleOpenHorarios(doctor)}
+                          >
                             <Clock className="h-4 w-4 text-primary" />
                           </Button>
                           {allowWrite && (

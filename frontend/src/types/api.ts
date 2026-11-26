@@ -190,6 +190,7 @@ export interface PrescricaoListagem {
 export type Prioridade = 'ROTINA' | 'PRIORITARIO' | 'URGENCIA'
 export type TipoConsulta = 'NORMAL' | 'RETORNO'
 export type MotivoCancelamento = 'PACIENTE_DESISTIU' | 'MEDICO_CANCELOU' | 'OUTROS'
+export type CanceladoPor = 'PACIENTE' | 'CLINICA'
 
 export interface ConsultaAgendamento {
   idPaciente: number
@@ -203,14 +204,22 @@ export interface ConsultaAgendamento {
 export interface ConsultaCancelamento {
   idConsulta: number
   motivo: MotivoCancelamento
-  canceladoPor?: string
+  canceladoPor?: CanceladoPor
 }
 
-// --- Prontuário create ---
+// --- Prontuário create / update ---
 export interface ProntuarioCadastro {
   consultaId: number
   anamnese: string
   diagnostico: string
+  cid10?: string
+  observacoes?: string
+}
+
+export interface ProntuarioAtualizacao {
+  id: number
+  anamnese?: string
+  diagnostico?: string
   cid10?: string
   observacoes?: string
 }
@@ -287,9 +296,12 @@ export interface IaResposta {
 
 export interface ConsultaListagem {
   id: number
+  idMedico?: number
   nomeMedico: string
+  idPaciente?: number
   nomePaciente: string
   dataHora: string
   prioridade: Prioridade
   tipo: TipoConsulta
+  consultaOrigemId?: number | null
 }

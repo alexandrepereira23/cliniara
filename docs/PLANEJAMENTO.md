@@ -88,13 +88,21 @@ Este documento organiza as fases do projeto. Pendencias detalhadas e melhorias f
 - Privacidade clinica de `ROLE_FUNCIONARIO`: bloqueio em `/prontuarios/**` (`403`) e restricao de `/medical-records` a `ROLE_MEDICO`, criacao de `GET /prescricoes/paciente/{pacienteId}` e adequacao de `Prescriptions.tsx`, `Certificates.tsx` e `FuncionarioDashboard.tsx` sem expor diagnosticos.
 - Bloqueio imediato de conta `ROLE_MEDICO` com medico inativado: `403` no login (`DisabledException`) e `401` em JWTs ativos no `SecurityFillter` (231 testes backend, 30 Vitest, 7 E2E).
 
-## Fase Atual — Alinhamento Backend/UI e Limpeza de Legados
+### 11. Alinhamento Backend/UI, Governanca de Auditoria e Limpeza de Legados
+
+- `DadosListagemConsulta` enriquecido com `idMedico`, `idPaciente` e `consultaOrigemId` (retrocompativel, sem migration).
+- `MedicalRecords.tsx`: detalhamento (`GET /prontuarios/{id}`), edicao pelo medico dentro da janela de 24h (`PUT /prontuarios`) e inativacao administrativa por `ROLE_AUDITOR`/`ROLE_GESTOR` (`DELETE /prontuarios/{id}`).
+- `Appointments.tsx`: agendamento de retorno (`consultaOrigemId` com vinculo automatico ao medico original) e seletor `canceladoPor` (`PACIENTE` | `CLINICA`) no cancelamento.
+- `Audit.tsx`: exibicao de `recursoTipo`/`recursoId` na trilha por prontuario e consulta direta por recurso clinico (`GET /auditoria/{recursoTipo}/{recursoId}`).
+- Navegacao somente-leitura alinhada para `ROLE_AUDITOR`/`ROLE_GESTOR` (mantendo `/audit` como home inicial), ajustes de modo leitura em `Doctors.tsx`/`Patients.tsx` e remocao dos 4 arquivos legados de template (`mockData.ts`, `Home.tsx`, `ManusDialog.tsx`, `Map.tsx`).
+- Cobertura expandida para **231 testes backend**, **39 testes Vitest** e **9 testes E2E Playwright** (incluindo fluxo clinico completo e auditoria/inativacao por `ROLE_AUDITOR`).
+
+## Fase Atual — Ciclo Completo da Consulta e Escalabilidade
 
 Entregas prioritarias desta fase (detalhes em `docs/BACKLOG.md`):
 
-- Conectar na UI os endpoints ja existentes (detalhamento/edicao/inativacao de prontuario, retorno e `canceladoPor` em consultas, auditoria por recurso clinico).
-- Remover artefatos legados sem uso do frontend (`mockData.ts`, `Home.tsx`, `ManusDialog.tsx`, `Map.tsx`).
-- Ampliar cobertura E2E para auditoria LGPD e fluxo clinico completo.
+- Ciclo completo de estados da consulta (`V26`: Agendada -> Confirmada -> Check-in -> Em atendimento -> Concluida / Cancelada / Ausente) e tratamento de consultas futuras de medico inativado.
+- Filtros/agregacoes server-side e code splitting (`React.lazy`) no frontend.
 
 ## Proximas Fases Sugeridas
 

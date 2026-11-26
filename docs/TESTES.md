@@ -7,9 +7,9 @@ Este documento registra a estrategia de testes, comandos de validacao e pendenci
 Validado nesta revisao documental:
 
 - Backend: **231 testes passando** com `./mvnw test` em `backend/`.
-- Frontend: **30 testes passando** com `npm test` em `frontend/`.
+- Frontend: **39 testes passando** com `npm test` em `frontend/`.
 - Frontend audit: **0 vulnerabilidades** reportadas em `npm audit` (corrigido com seguranca via `npm audit fix`).
-- E2E (Playwright + Chromium): **7 testes passando** com `npm run test:e2e` em `frontend/` (validado localmente no modo H2; o modo MySQL + Flyway roda no CI).
+- E2E (Playwright + Chromium): **9 testes passando** com `npm run test:e2e` em `frontend/` (validado localmente no modo H2; o modo MySQL + Flyway roda no CI).
 - CI/CD (`.github/workflows/deploy.yml`): o job `test` executa `./mvnw --batch-mode test`, `npm test`, `npm run check` e `npm run build`; o job `e2e` (MySQL 8.0 real + Flyway `V1`–`V25`) executa `npm run test:e2e`. O `deploy` na VPS depende dos dois (`needs: [test, e2e]`).
 
 ## Comandos
@@ -136,9 +136,12 @@ Arquivos atuais de teste:
 | `frontend/src/api/axios.test.ts` | 5 | Interceptor JWT, 401, 403 e login |
 | `frontend/src/contexts/AuthContext.test.tsx` | 3 | Persistencia de sessao, limpeza em 401 e logout |
 | `frontend/src/components/dashboard/FuncionarioDashboard.test.tsx` | 6 | Dashboard, agenda do dia, loading, erro e retry |
+| `frontend/src/pages/Appointments.test.tsx` | 3 | Retorno vinculado ao medico original (`consultaOrigemId`), `canceladoPor` e modo leitura de auditor |
+| `frontend/src/pages/Audit.test.tsx` | 2 | Trilha por prontuario com `recursoTipo`/`recursoId` e consulta direta por recurso clinico |
 | `frontend/src/pages/Doctors.cep.test.tsx` | 3 | Busca de CEP no cadastro de medico |
-| `frontend/src/pages/Patients.cep.test.tsx` | 2 | Busca de CEP e payload sanitizado no cadastro de paciente |
 | `frontend/src/pages/Login.test.tsx` | 3 | Token invalido, erro 401 de credenciais e 403 de conta inativa |
+| `frontend/src/pages/MedicalRecords.test.tsx` | 4 | Detalhamento, edicao em 24h, bloqueio pos-24h e inativacao por auditor |
+| `frontend/src/pages/Patients.cep.test.tsx` | 2 | Busca de CEP e payload sanitizado no cadastro de paciente |
 | `frontend/src/pages/Users.test.tsx` | 6 | Cadastro de usuarios e seletor de medicos disponiveis |
 
 ## Configuracoes de Teste
@@ -178,16 +181,14 @@ Specs em `frontend/e2e/`, executados em serie (1 worker) contra o mesmo banco:
 | Arquivo | Testes | Cobertura principal |
 |---|---:|---|
 | `auth-rbac.spec.ts` | 2 | Login com credenciais invalidas; `ROLE_ADMIN` redirecionado para `/users`, sidebar restrita, bloqueio de `/doctors` e logout |
-| `clinic-smoke.spec.ts` | 5 | Admin cria funcionario; funcionario cria especialidade e medico com busca de CEP; disponibilidade e paciente com busca de CEP; agendamento (bloqueio fora da disponibilidade e sucesso no horario valido); admin vincula usuario medico e `ROLE_MEDICO` ve a consulta e o menu `IA clinica` |
+| `clinic-smoke.spec.ts` | 7 | Admin cria funcionario; funcionario cria especialidade e medico com busca de CEP; disponibilidade e paciente com busca de CEP; agendamento (bloqueio fora da disponibilidade e sucesso no horario valido); admin vincula usuario medico; `ROLE_MEDICO` cria/detalha/edita prontuario em 24h e emite prescricao; admin cria `ROLE_AUDITOR` que audita prontuario/prescricao e inativa prontuario |
 
 A busca de CEP usa um stub HTTP local (`e2e/support/cepStubServer.ts`) no lugar do `Consultar-Cep`. O stub exige o header `X-API-Key`, entao os testes tambem comprovam que o backend injeta a chave na chamada backend-to-backend. Os dados de cada execucao (e-mails, CRM, CPF valido, especialidade) sao gerados por `e2e/support/testData.ts`, o que permite repetir a suite no mesmo banco.
 
 ## Pendencias de Teste
 
 - Criar testes de integracao com MySQL real / Testcontainers validando concorrencia real no vinculo medico-usuario e agendamento (as migrations Flyway `V1`–`V25` ja sao exercitadas pelo job `e2e` do CI).
-- Ampliar o E2E para `ROLE_AUDITOR`/`ROLE_GESTOR` (auditoria LGPD), prontuario, prescricao e atestado.
-- Cobrir fluxo completo de consulta quando os estados adicionais forem implementados.
-- Validar o job `e2e` do GitHub Actions na primeira execucao real (so o modo H2 foi rodado localmente).
+- Cobrir fluxo completo de consulta quando os estados adicionais (`V26`) forem implementados.
 
 ## Troubleshooting Docker Local
 
