@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { prontuariosApi } from '@/api/prontuarios';
 import { consultasApi } from '@/api/consultas';
 import { useAuth } from '@/hooks/useAuth';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { canInactivateProntuario } from '@/lib/rbac';
 import { extractApiError } from '@/lib/utils';
 import { statusConsultaLabel } from '@/lib/consultaStatus';
@@ -45,6 +46,7 @@ export default function MedicalRecords() {
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
 
   // Modal criar
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -69,15 +71,22 @@ export default function MedicalRecords() {
   const [inactivateTarget, setInactivateTarget] = useState<ProntuarioListagem | null>(null);
   const [inactivating, setInactivating] = useState(false);
 
-  const fetchRecords = (p = 0) => {
+  const fetchRecords = (p = 0, q = debouncedSearch) => {
     setLoading(true);
-    prontuariosApi.list(p)
+    const trimmed = q.trim();
+    const request = trimmed ? prontuariosApi.list(p, 10, trimmed) : prontuariosApi.list(p);
+    request
       .then(r => { setRecords(r.content); setTotalPages(r.totalPages); })
       .catch(() => toast.error('Erro ao carregar prontuários'))
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchRecords(page); }, [page]);
+  useEffect(() => { fetchRecords(page, debouncedSearch); }, [page, debouncedSearch]);
+
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setPage(0);
+  };
 
   const handleOpenCreate = async () => {
     setCreateForm({ consultaId: '', anamnese: '', diagnostico: '', cid10: '', observacoes: '' });
@@ -191,12 +200,7 @@ export default function MedicalRecords() {
     }
   };
 
-  const filtered = search.trim()
-    ? records.filter(r =>
-        [r.nomePaciente, r.diagnostico]
-          .some(v => v?.toLowerCase().includes(search.toLowerCase()))
-      )
-    : records;
+  const filtered = records;
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
@@ -222,9 +226,9 @@ export default function MedicalRecords() {
         <Card className="border-border">
           <div className="p-6">
             <SearchInput
-              placeholder="Buscar por paciente ou diagnóstico..."
+              placeholder="Buscar por paciente, diagnóstico ou CID-10..."
               value={search}
-              onChange={setSearch}
+              onChange={handleSearchChange}
             />
           </div>
         </Card>

@@ -38,6 +38,7 @@ import { medicoConveniosApi } from '@/api/medicoConvenios';
 import { conveniosApi } from '@/api/convenios';
 import { cepApi } from '@/api/cep';
 import { useAuth } from '@/hooks/useAuth';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { canWrite } from '@/lib/rbac';
 import { extractApiError } from '@/lib/utils';
 import type {
@@ -94,6 +95,8 @@ export default function Doctors() {
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
+  const [especialidadeFilter, setEspecialidadeFilter] = useState('ALL');
 
   const [especialidades, setEspecialidades] = useState<EspecialidadeListagem[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -118,10 +121,18 @@ export default function Doctors() {
   const [horarioForm, setHorarioForm] = useState({ diaSemana: '' as DiaSemana | '', horaInicio: '', horaFim: '' });
   const [savingHorario, setSavingHorario] = useState(false);
 
-  const fetchDoctors = async (p = page) => {
+  const fetchDoctors = async (p = page, q = debouncedSearch, esp = especialidadeFilter) => {
     setLoading(true);
     try {
-      const result = await medicosApi.list(p);
+      const trimmed = q.trim();
+      const especialidadeId = esp !== 'ALL' ? Number(esp) : undefined;
+      const result =
+        trimmed || especialidadeId != null
+          ? await medicosApi.list(p, 10, {
+              ...(trimmed ? { q: trimmed } : {}),
+              ...(especialidadeId != null ? { especialidadeId } : {}),
+            })
+          : await medicosApi.list(p);
       setDoctors(result.content);
       setTotalPages(result.totalPages);
     } catch {
@@ -132,8 +143,8 @@ export default function Doctors() {
   };
 
   useEffect(() => {
-    fetchDoctors(page);
-  }, [page]);
+    fetchDoctors(page, debouncedSearch, especialidadeFilter);
+  }, [page, debouncedSearch, especialidadeFilter]);
 
   useEffect(() => {
     if (allowWrite || user?.role !== 'ROLE_ADMIN') {
@@ -141,12 +152,17 @@ export default function Doctors() {
     }
   }, []);
 
-  const filteredDoctors = search.trim()
-    ? doctors.filter(d =>
-        [d.nome, d.crm, d.especialidade, d.email]
-          .some(v => v?.toLowerCase().includes(search.toLowerCase()))
-      )
-    : doctors;
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setPage(0);
+  };
+
+  const handleEspecialidadeFilterChange = (value: string) => {
+    setEspecialidadeFilter(value);
+    setPage(0);
+  };
+
+  const filteredDoctors = doctors;
 
   const handleOpenModal = async (doctor?: MedicoListagem) => {
     setBuscandoCep(false);
@@ -388,12 +404,30 @@ export default function Doctors() {
         />
 
         <Card className="border-border">
-          <div className="p-6">
-            <SearchInput
-              placeholder="Buscar por nome, CRM, especialidade ou e-mail..."
-              value={search}
-              onChange={setSearch}
-            />
+          <div className="p-6 flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="flex-1">
+              <SearchInput
+                placeholder="Buscar por nome, CRM, especialidade ou e-mail..."
+                value={search}
+                onChange={handleSearchChange}
+              />
+            </div>
+            <div className="w-full sm:w-64">
+              <Label className="sr-only" htmlFor="especialidadeFilter">Filtrar por especialidade</Label>
+              <Select value={especialidadeFilter} onValueChange={handleEspecialidadeFilterChange}>
+                <SelectTrigger id="especialidadeFilter" aria-label="Filtrar por especialidade">
+                  <SelectValue placeholder="Todas as especialidades" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Todas as especialidades</SelectItem>
+                  {especialidades.map(esp => (
+                    <SelectItem key={esp.id} value={String(esp.id)}>
+                      {esp.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </Card>
 

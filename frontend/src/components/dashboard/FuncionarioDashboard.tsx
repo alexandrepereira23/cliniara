@@ -4,12 +4,14 @@ import type { LucideIcon } from 'lucide-react';
 import {
   AlertCircle,
   Calendar,
+  CheckCircle2,
   Clock,
   FileSearch,
   ListChecks,
   Plus,
   RefreshCw,
   SearchX,
+  UserCheck,
   UserPlus,
 } from 'lucide-react';
 import { Badge } from '@/components/Badge';
@@ -20,6 +22,13 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
   Table,
   TableBody,
   TableCell,
@@ -27,18 +36,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { consultasApi } from '@/api/consultas';
+import { dashboardApi } from '@/api/dashboard';
 import { statusConsultaBadge, statusConsultaLabel } from '@/lib/consultaStatus';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import type { ConsultaListagem, Prioridade, StatusConsulta, TipoConsulta } from '@/types/api';
-
-const DASHBOARD_PAGE_SIZE = 100;
+import type {
+  ConsultaListagem,
+  DashboardRecepcao,
+  Prioridade,
+  StatusConsulta,
+  TipoConsulta,
+} from '@/types/api';
 
 const prioridadeLabel: Record<Prioridade, string> = {
   ROTINA: 'Rotina',
@@ -57,6 +63,8 @@ const tipoConsultaLabel: Record<TipoConsulta, string> = {
   RETORNO: 'Retorno',
 };
 
+const activeStatuses: StatusConsulta[] = ['AGENDADA', 'CONFIRMADA', 'CHECK_IN', 'EM_ATENDIMENTO', 'CONCLUIDA'];
+
 const quickActions: Array<{ label: string; href: string; icon: LucideIcon }> = [
   { label: 'Nova consulta', href: '/appointments', icon: Plus },
   { label: 'Novo paciente', href: '/patients', icon: UserPlus },
@@ -64,38 +72,8 @@ const quickActions: Array<{ label: string; href: string; icon: LucideIcon }> = [
   { label: 'Consultar atestados', href: '/certificates', icon: FileSearch },
 ];
 
-async function fetchAllActiveAppointments() {
-  const firstPage = await consultasApi.list(0, DASHBOARD_PAGE_SIZE);
-
-  if (firstPage.totalPages <= 1) {
-    return firstPage.content;
-  }
-
-  const remainingPages = await Promise.all(
-    Array.from({ length: firstPage.totalPages - 1 }, (_, index) =>
-      consultasApi.list(index + 1, DASHBOARD_PAGE_SIZE)
-    )
-  );
-
-  return [firstPage.content, ...remainingPages.map(page => page.content)].flat();
-}
-
 function normalizeText(value: string) {
   return value.trim().toLocaleLowerCase('pt-BR');
-}
-
-function isSameLocalDay(value: string, reference: Date) {
-  const date = new Date(value);
-
-  return (
-    date.getFullYear() === reference.getFullYear() &&
-    date.getMonth() === reference.getMonth() &&
-    date.getDate() === reference.getDate()
-  );
-}
-
-function sortByDateTime(a: ConsultaListagem, b: ConsultaListagem) {
-  return new Date(a.dataHora).getTime() - new Date(b.dataHora).getTime();
 }
 
 function formatTime(value: string) {
@@ -104,8 +82,8 @@ function formatTime(value: string) {
 
 function SummarySkeleton() {
   return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-      {[1, 2].map(item => (
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      {[1, 2, 3, 4].map(item => (
         <Card key={item} className="border-border">
           <CardContent className="space-y-4">
             <Skeleton className="h-4 w-32" />
@@ -247,10 +225,8 @@ function AgendaList({ appointments }: { appointments: ConsultaListagem[] }) {
   );
 }
 
-const activeStatuses: StatusConsulta[] = ['AGENDADA', 'CONFIRMADA', 'CHECK_IN', 'EM_ATENDIMENTO', 'CONCLUIDA'];
-
 export function FuncionarioDashboard() {
-  const [appointments, setAppointments] = useState<ConsultaListagem[]>([]);
+  const [dashboard, setDashboard] = useState<DashboardRecepcao | null>(null);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'TODOS' | StatusConsulta>('TODOS');
   const [loading, setLoading] = useState(true);
@@ -265,13 +241,13 @@ export function FuncionarioDashboard() {
       setError(false);
 
       try {
-        const data = await fetchAllActiveAppointments();
+        const data = await dashboardApi.recepcao();
         if (!active) return;
-        setAppointments(data);
+        setDashboard(data);
       } catch {
         if (!active) return;
         setError(true);
-        setAppointments([]);
+        setDashboard(null);
       } finally {
         if (active) setLoading(false);
       }
@@ -289,8 +265,8 @@ export function FuncionarioDashboard() {
     setError(false);
 
     try {
-      const data = await fetchAllActiveAppointments();
-      setAppointments(data);
+      const data = await dashboardApi.recepcao();
+      setDashboard(data);
     } catch {
       setError(true);
     } finally {
@@ -298,20 +274,15 @@ export function FuncionarioDashboard() {
     }
   }
 
-  const now = new Date();
-  const todayAppointments = appointments
-    .filter(appointment => isSameLocalDay(appointment.dataHora, now))
-    .sort(sortByDateTime);
-  const nextAppointment = todayAppointments.find(
-    appointment => appointment.status !== 'CONCLUIDA' && new Date(appointment.dataHora) >= now
-  );
+  const todayAppointments = dashboard?.agendaHoje ?? [];
+  const nextAppointment = dashboard?.proximaConsulta ?? null;
   const normalizedSearch = normalizeText(search);
   const filteredAppointments = todayAppointments.filter(appointment => {
     const matchesSearch = !normalizedSearch || normalizeText(appointment.nomePaciente).includes(normalizedSearch);
     const matchesStatus = statusFilter === 'TODOS' || (appointment.status ?? 'AGENDADA') === statusFilter;
     return matchesSearch && matchesStatus;
   });
-  const dataUnavailable = error && appointments.length === 0;
+  const dataUnavailable = error && !dashboard;
 
   return (
     <DashboardLayout>
@@ -319,7 +290,7 @@ export function FuncionarioDashboard() {
         <header className="space-y-2">
           <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">Dashboard</h1>
           <p className="max-w-2xl text-muted-foreground">
-            Confira a agenda da clínica para hoje.
+            Confira a agenda da clínica e o andamento operacional de hoje.
           </p>
         </header>
 
@@ -329,26 +300,26 @@ export function FuncionarioDashboard() {
           <div>
             <h2 id="resumo-dia" className="text-lg font-semibold text-foreground">Resumo do dia</h2>
             <p className="text-sm text-muted-foreground">
-              Indicadores calculados a partir das consultas ativas retornadas por /consultas.
+              Indicadores agregados em tempo real para a recepção.
             </p>
           </div>
 
           {loading ? (
             <SummarySkeleton />
           ) : (
-            <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <Card className="border-border">
                 <CardContent>
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="text-sm font-medium text-muted-foreground">Consultas de hoje</p>
                       <p className="mt-2 text-4xl font-bold text-foreground">
-                        {dataUnavailable ? '—' : todayAppointments.length}
+                        {dataUnavailable ? '—' : (dashboard?.consultasHoje ?? 0)}
                       </p>
-                      <p className="mt-2 text-sm text-muted-foreground">
+                      <p className="mt-2 text-xs text-muted-foreground">
                         {dataUnavailable
                           ? 'Dados indisponíveis no momento.'
-                          : 'Consultas ativas encontradas para a data local.'}
+                          : `${dashboard?.aguardandoConfirmacaoHoje ?? 0} pendente(s) · ${dashboard?.confirmadasHoje ?? 0} confirmada(s)`}
                       </p>
                     </div>
                     <div className="rounded-xl bg-primary/10 p-3 text-primary">
@@ -360,22 +331,64 @@ export function FuncionarioDashboard() {
 
               <Card className="border-border">
                 <CardContent>
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex items-start justify-between gap-4">
                     <div>
+                      <p className="text-sm font-medium text-muted-foreground">Aguardando (Check-in)</p>
+                      <p className="mt-2 text-4xl font-bold text-foreground">
+                        {dataUnavailable ? '—' : (dashboard?.aguardandoAtendimentoHoje ?? 0)}
+                      </p>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {dataUnavailable
+                          ? 'Dados indisponíveis no momento.'
+                          : `${dashboard?.emAtendimentoHoje ?? 0} em atendimento agora`}
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-amber-50 p-3 text-amber-600">
+                      <UserCheck className="h-6 w-6" aria-hidden="true" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-border">
+                <CardContent>
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Concluídas hoje</p>
+                      <p className="mt-2 text-4xl font-bold text-foreground">
+                        {dataUnavailable ? '—' : (dashboard?.concluidasHoje ?? 0)}
+                      </p>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {dataUnavailable
+                          ? 'Dados indisponíveis no momento.'
+                          : `${dashboard?.canceladasHoje ?? 0} cancelada(s) · ${dashboard?.ausentesHoje ?? 0} ausência(s)`}
+                      </p>
+                    </div>
+                    <div className="rounded-xl bg-green-50 p-3 text-green-600">
+                      <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-border">
+                <CardContent>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
                       <p className="text-sm font-medium text-muted-foreground">Próxima consulta</p>
                       {dataUnavailable ? (
                         <p className="mt-3 text-sm text-muted-foreground">Dados indisponíveis no momento.</p>
                       ) : nextAppointment ? (
                         <div className="mt-2 space-y-1">
-                          <p className="text-4xl font-bold text-foreground">{formatTime(nextAppointment.dataHora)}</p>
-                          <p className="font-semibold text-foreground">{nextAppointment.nomePaciente}</p>
-                          <p className="text-sm text-muted-foreground">Médico: {nextAppointment.nomeMedico}</p>
+                          <p className="text-3xl font-bold text-foreground">{formatTime(nextAppointment.dataHora)}</p>
+                          <p className="font-semibold text-foreground truncate">{nextAppointment.nomePaciente}</p>
+                          <p className="text-xs text-muted-foreground truncate">Médico: {nextAppointment.nomeMedico}</p>
                         </div>
                       ) : (
                         <p className="mt-3 text-sm text-muted-foreground">Nenhuma consulta pendente</p>
                       )}
                     </div>
-                    <div className="rounded-xl bg-primary/10 p-3 text-primary">
+                    <div className="rounded-xl bg-primary/10 p-3 text-primary shrink-0">
                       <Clock className="h-6 w-6" aria-hidden="true" />
                     </div>
                   </div>
@@ -500,7 +513,7 @@ export function FuncionarioDashboard() {
                 <EmptyState
                   icon={SearchX}
                   title="Nenhuma consulta encontrada para essa busca."
-                  description="Revise o nome do paciente ou limpe o campo para ver toda a agenda de hoje."
+                  description="Revise o nome do paciente ou o filtro de status para ver toda a agenda de hoje."
                 />
               ) : (
                 <AgendaList appointments={filteredAppointments} />

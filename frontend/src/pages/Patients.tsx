@@ -37,6 +37,7 @@ import { convenioPacienteApi } from '@/api/convenioPaciente';
 import { conveniosApi } from '@/api/convenios';
 import { cepApi } from '@/api/cep';
 import { useAuth } from '@/hooks/useAuth';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { canWrite, canReadPatientConvenios } from '@/lib/rbac';
 import { extractApiError } from '@/lib/utils';
 import type {
@@ -77,6 +78,7 @@ export default function Patients() {
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -93,10 +95,11 @@ export default function Patients() {
   const [convenioForm, setConvenioForm] = useState({ convenioId: '', numeroCarteirinha: '', validade: '' });
   const [savingConvenio, setSavingConvenio] = useState(false);
 
-  const fetchPatients = async (p = page) => {
+  const fetchPatients = async (p = page, q = debouncedSearch) => {
     setLoading(true);
     try {
-      const result = await pacientesApi.list(p);
+      const trimmed = q.trim();
+      const result = trimmed ? await pacientesApi.list(p, 10, trimmed) : await pacientesApi.list(p);
       setPatients(result.content);
       setTotalPages(result.totalPages);
     } catch {
@@ -107,15 +110,15 @@ export default function Patients() {
   };
 
   useEffect(() => {
-    fetchPatients(page);
-  }, [page]);
+    fetchPatients(page, debouncedSearch);
+  }, [page, debouncedSearch]);
 
-  const filteredPatients = search.trim()
-    ? patients.filter(p =>
-        [p.nome, p.cpf, p.email]
-          .some(v => v?.toLowerCase().includes(search.toLowerCase()))
-      )
-    : patients;
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setPage(0);
+  };
+
+  const filteredPatients = patients;
 
   const handleOpenModal = async (patient?: PacienteListagem) => {
     setBuscandoCep(false);
@@ -304,7 +307,7 @@ export default function Patients() {
             <SearchInput
               placeholder="Buscar por nome, CPF ou e-mail..."
               value={search}
-              onChange={setSearch}
+              onChange={handleSearchChange}
             />
           </div>
         </Card>

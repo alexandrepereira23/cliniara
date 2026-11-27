@@ -206,4 +206,17 @@ describe('MedicalRecords', () => {
     expect(await screen.findByRole('option', { name: /Paciente Em Atendimento/i })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: /Paciente Agendado/i })).not.toBeInTheDocument()
   })
+
+  it('envia busca textual q para GET /prontuarios no servidor com debounce', async () => {
+    renderWithRole('ROLE_MEDICO')
+
+    await screen.findByText('Maria Souza')
+    const searchInput = screen.getByRole('searchbox', { name: /buscar por paciente, diagnóstico ou cid-10/i })
+    const user = userEvent.setup()
+    await user.type(searchInput, 'Sinusite')
+
+    await waitFor(() => {
+      expect(prontuariosMock.list).toHaveBeenCalledWith(0, 10, 'Sinusite')
+    })
+  })
 })

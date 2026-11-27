@@ -14,6 +14,10 @@ import type {
 export interface ConsultaListFilters {
   status?: StatusConsulta
   incluirEncerradas?: boolean
+  q?: string
+  medicoId?: number
+  dataInicio?: string
+  dataFim?: string
 }
 
 export const consultasApi = {
@@ -25,6 +29,10 @@ export const consultasApi = {
           size,
           ...(filters?.status ? { status: filters.status } : {}),
           ...(filters?.incluirEncerradas ? { incluirEncerradas: true } : {}),
+          ...(filters?.q && filters.q.trim() ? { q: filters.q.trim() } : {}),
+          ...(filters?.medicoId != null ? { medicoId: filters.medicoId } : {}),
+          ...(filters?.dataInicio ? { dataInicio: filters.dataInicio } : {}),
+          ...(filters?.dataFim ? { dataFim: filters.dataFim } : {}),
         },
       })
       .then(r => r.data),

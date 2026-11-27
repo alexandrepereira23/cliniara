@@ -58,7 +58,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   const navItems = allNavItems.filter(item => {
     if (user?.role === 'ROLE_ADMIN') return item.href === '/users';
-    if (user?.role === 'ROLE_AUDITOR' || user?.role === 'ROLE_GESTOR') {
+    if (user?.role === 'ROLE_GESTOR') {
+      return !['/users', '/clinical-ai'].includes(item.href);
+    }
+    if (user?.role === 'ROLE_AUDITOR') {
       return !['/', '/users', '/clinical-ai'].includes(item.href);
     }
     if (user?.role === 'ROLE_MEDICO') return !['/users', '/specialties', '/insurance', '/audit'].includes(item.href);

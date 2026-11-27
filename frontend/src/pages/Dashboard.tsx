@@ -1,5 +1,6 @@
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { FuncionarioDashboard } from '@/components/dashboard/FuncionarioDashboard';
+import { GestorDashboard } from '@/components/dashboard/GestorDashboard';
 import { MedicoDashboard } from '@/components/dashboard/MedicoDashboard';
 import { Card, CardContent } from '@/components/ui/card';
 import { useAuth } from '@/hooks/useAuth';
@@ -13,6 +14,10 @@ export default function Dashboard() {
 
   if (user?.role === 'ROLE_MEDICO') {
     return <MedicoDashboard />;
+  }
+
+  if (user?.role === 'ROLE_GESTOR') {
+    return <GestorDashboard />;
   }
 
   return (

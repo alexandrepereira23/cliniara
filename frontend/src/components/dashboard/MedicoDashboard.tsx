@@ -1,6 +1,15 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'wouter';
-import { AlertCircle, BookOpen, Calendar, Clock, Plus, Users } from 'lucide-react';
+import {
+  AlertCircle,
+  BookOpen,
+  Calendar,
+  Clock,
+  Plus,
+  Stethoscope,
+  UserCheck,
+  Users,
+} from 'lucide-react';
 import { Badge } from '@/components/Badge';
 import { DashboardLayout } from '@/components/DashboardLayout';
 import { Button } from '@/components/ui/button';
@@ -13,11 +22,14 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { consultasApi } from '@/api/consultas';
-import { pacientesApi } from '@/api/pacientes';
-import { prontuariosApi } from '@/api/prontuarios';
+import { dashboardApi } from '@/api/dashboard';
 import { statusConsultaBadge, statusConsultaLabel } from '@/lib/consultaStatus';
-import type { ConsultaListagem, Prioridade, StatusConsulta, TipoConsulta } from '@/types/api';
+import type {
+  DashboardMedico,
+  Prioridade,
+  StatusConsulta,
+  TipoConsulta,
+} from '@/types/api';
 
 const prioridadeLabel: Record<Prioridade, string> = {
   ROTINA: 'Rotina',
@@ -36,68 +48,26 @@ const tipoConsultaLabel: Record<TipoConsulta, string> = {
   RETORNO: 'Retorno',
 };
 
-interface MedicoStats {
-  consultasHoje: number
-  totalPacientes: number
-  totalConsultas: number
-  urgenciasHoje: number
-  proximasConsultas: number
-  totalProntuarios: number
-}
-
-const initialStats: MedicoStats = {
-  consultasHoje: 0,
-  totalPacientes: 0,
-  totalConsultas: 0,
-  urgenciasHoje: 0,
-  proximasConsultas: 0,
-  totalProntuarios: 0,
-};
-
 export function MedicoDashboard() {
-  const [stats, setStats] = useState<MedicoStats>(initialStats);
-  const [todayAppointments, setTodayAppointments] = useState<ConsultaListagem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [dashboard, setDashboard] = useState<DashboardMedico | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setError(false);
 
-    Promise.all([
-      consultasApi.list(0, 100),
-      pacientesApi.list(0, 1),
-      prontuariosApi.list(0, 1),
-    ])
-      .then(([consultas, pacientes, prontuarios]) => {
+    dashboardApi
+      .medico()
+      .then(data => {
         if (!active) return;
-
-        const hoje = new Date().toDateString();
-        const agora = new Date();
-        const daquiSeteDias = new Date();
-        daquiSeteDias.setDate(daquiSeteDias.getDate() + 7);
-
-        const todayList = consultas.content.filter(
-          (consulta: ConsultaListagem) => new Date(consulta.dataHora).toDateString() === hoje
-        );
-        const proximasConsultas = consultas.content.filter(consulta => {
-          const data = new Date(consulta.dataHora);
-          return data >= agora && data <= daquiSeteDias;
-        }).length;
-
-        setTodayAppointments(todayList);
-        setStats({
-          consultasHoje: todayList.length,
-          urgenciasHoje: todayList.filter(consulta => consulta.prioridade === 'URGENCIA').length,
-          proximasConsultas,
-          totalPacientes: pacientes.totalElements,
-          totalConsultas: consultas.totalElements,
-          totalProntuarios: prontuarios.totalElements,
-        });
+        setDashboard(data);
       })
       .catch(() => {
         if (!active) return;
-        setStats(initialStats);
-        setTodayAppointments([]);
+        setError(true);
+        setDashboard(null);
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -111,45 +81,47 @@ export function MedicoDashboard() {
   const formatTime = (iso: string) =>
     new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
+  const todayAppointments = dashboard?.agendaHoje ?? [];
+
   const statCards = [
     {
       title: 'Consultas Hoje',
-      value: stats.consultasHoje,
+      value: dashboard?.consultasHoje ?? 0,
       icon: Calendar,
       color: 'text-blue-600',
       bgColor: 'bg-blue-50',
     },
     {
+      title: 'Fila de Espera (Check-in)',
+      value: dashboard?.filaEsperaHoje ?? 0,
+      icon: UserCheck,
+      color: 'text-amber-600',
+      bgColor: 'bg-amber-50',
+    },
+    {
       title: 'Urgências Hoje',
-      value: stats.urgenciasHoje,
+      value: dashboard?.urgenciasHoje ?? 0,
       icon: AlertCircle,
       color: 'text-red-600',
       bgColor: 'bg-red-50',
     },
     {
       title: 'Próximos 7 Dias',
-      value: stats.proximasConsultas,
+      value: dashboard?.proximosSeteDias ?? 0,
       icon: Clock,
       color: 'text-cyan-600',
       bgColor: 'bg-cyan-50',
     },
     {
-      title: 'Pacientes Cadastrados',
-      value: stats.totalPacientes,
+      title: 'Pacientes Vinculados',
+      value: dashboard?.totalPacientesVinculados ?? 0,
       icon: Users,
       color: 'text-green-600',
       bgColor: 'bg-green-50',
     },
     {
-      title: 'Total de Consultas',
-      value: stats.totalConsultas,
-      icon: AlertCircle,
-      color: 'text-orange-600',
-      bgColor: 'bg-orange-50',
-    },
-    {
       title: 'Prontuários',
-      value: stats.totalProntuarios,
+      value: dashboard?.totalProntuarios ?? 0,
       icon: BookOpen,
       color: 'text-indigo-600',
       bgColor: 'bg-indigo-50',
@@ -166,9 +138,17 @@ export function MedicoDashboard() {
           </p>
         </div>
 
+        {error && (
+          <Card role="alert" className="border-destructive/40 bg-destructive/5">
+            <CardContent className="pt-6 text-sm text-destructive">
+              Não foi possível carregar os indicadores da sua agenda no momento.
+            </CardContent>
+          </Card>
+        )}
+
         {loading ? (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {[1, 2, 3, 4].map(item => (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3, 4, 5, 6].map(item => (
               <Card key={item} className="border-border animate-pulse">
                 <CardContent className="pt-6">
                   <div className="h-16 rounded bg-muted" />
@@ -177,7 +157,7 @@ export function MedicoDashboard() {
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {statCards.map(stat => {
               const Icon = stat.icon;
               return (
@@ -205,6 +185,12 @@ export function MedicoDashboard() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Button variant="outline" asChild className="w-full justify-start">
+                <Link href="/appointments">
+                  <Stethoscope className="h-4 w-4" aria-hidden="true" />
+                  Abrir Minha Agenda
+                </Link>
+              </Button>
               <Button variant="outline" asChild className="w-full justify-start">
                 <Link href="/medical-records">
                   <Plus className="h-4 w-4" aria-hidden="true" />

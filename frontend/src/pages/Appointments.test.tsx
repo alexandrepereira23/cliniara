@@ -300,4 +300,29 @@ describe('Appointments', () => {
     expect(pacientesMock.list).not.toHaveBeenCalled()
     expect(conveniosMock.listAll).not.toHaveBeenCalled()
   })
+
+  it('envia busca textual q, filtro de status e período para o servidor em GET /consultas', async () => {
+    const user = userEvent.setup()
+    renderWithRole('ROLE_FUNCIONARIO')
+
+    await screen.findByText('João Silva')
+    fireEvent.change(screen.getByLabelText(/data inicial/i), { target: { value: '2026-11-01' } })
+    fireEvent.change(screen.getByLabelText(/data final/i), { target: { value: '2026-11-30' } })
+    fireEvent.change(screen.getByRole('searchbox', { name: /buscar por paciente ou médico/i }), {
+      target: { value: 'João' },
+    })
+
+    await waitFor(() => {
+      expect(consultasMock.list).toHaveBeenCalledWith(0, 10, {
+        q: 'João',
+        dataInicio: '2026-11-01',
+        dataFim: '2026-11-30',
+      })
+    })
+
+    await user.click(screen.getByRole('button', { name: /limpar filtros/i }))
+    await waitFor(() => {
+      expect(consultasMock.list).toHaveBeenLastCalledWith(0)
+    })
+  })
 })

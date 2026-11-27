@@ -349,3 +349,61 @@ export interface ConsultaListagem {
   consultaOrigemId?: number | null
   consultaReagendadaDeId?: number | null
 }
+
+// --- Dashboards ---
+export interface ContagemStatusDashboard {
+  status: StatusConsulta
+  quantidade: number
+}
+
+export interface ProducaoEspecialidadeDashboard {
+  especialidade: string
+  total: number
+  concluidas: number
+  canceladas: number
+  ausentes: number
+}
+
+export interface DashboardRecepcao {
+  dataReferencia: string
+  consultasHoje: number
+  aguardandoConfirmacaoHoje: number
+  confirmadasHoje: number
+  aguardandoAtendimentoHoje: number
+  emAtendimentoHoje: number
+  concluidasHoje: number
+  canceladasHoje: number
+  ausentesHoje: number
+  proximaConsulta: ConsultaListagem | null
+  agendaHoje: ConsultaListagem[]
+}
+
+export interface DashboardMedico {
+  dataReferencia: string
+  consultasHoje: number
+  urgenciasHoje: number
+  filaEsperaHoje: number
+  emAtendimentoAgora: number
+  concluidasHoje: number
+  proximosSeteDias: number
+  totalPacientesVinculados: number
+  totalConsultasAtivas: number
+  totalProntuarios: number
+  agendaHoje: ConsultaListagem[]
+}
+
+export interface DashboardGestor {
+  periodoDias: number
+  consultasHoje: number
+  totalConsultasPeriodo: number
+  concluidasPeriodo: number
+  canceladasPeriodo: number
+  ausentesPeriodo: number
+  reagendadasPeriodo: number
+  taxaCancelamentoPercentual: number
+  taxaAbsenteismoPercentual: number
+  medicosAtivos: number
+  pacientesAtivos: number
+  porStatus: ContagemStatusDashboard[]
+  porEspecialidade: ProducaoEspecialidadeDashboard[]
+}

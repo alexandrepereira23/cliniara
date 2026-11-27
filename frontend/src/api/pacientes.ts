@@ -8,8 +8,16 @@ import type {
 } from '@/types/api'
 
 export const pacientesApi = {
-  list: (page = 0, size = 10) =>
-    api.get<Page<PacienteListagem>>('/pacientes', { params: { page, size } }).then(r => r.data),
+  list: (page = 0, size = 10, q?: string) =>
+    api
+      .get<Page<PacienteListagem>>('/pacientes', {
+        params: {
+          page,
+          size,
+          ...(q && q.trim() ? { q: q.trim() } : {}),
+        },
+      })
+      .then(r => r.data),
 
   get: (id: number) =>
     api.get<PacienteDetalhamento>(`/pacientes/${id}`).then(r => r.data),

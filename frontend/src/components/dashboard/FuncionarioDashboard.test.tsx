@@ -1,14 +1,14 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { consultasApi } from '@/api/consultas';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { dashboardApi } from '@/api/dashboard';
 import { AuthContext } from '@/contexts/AuthContext';
-import type { ConsultaListagem, Page } from '@/types/api';
+import type { ConsultaListagem, DashboardRecepcao } from '@/types/api';
 import { FuncionarioDashboard } from './FuncionarioDashboard';
 
-vi.mock('@/api/consultas', () => ({
-  consultasApi: {
-    list: vi.fn(),
+vi.mock('@/api/dashboard', () => ({
+  dashboardApi: {
+    recepcao: vi.fn(),
   },
 }));
 
@@ -25,18 +25,22 @@ function consulta(overrides: Partial<ConsultaListagem>): ConsultaListagem {
   };
 }
 
-function page(content: ConsultaListagem[], totalPages = 1, number = 0): Page<ConsultaListagem> {
+function makeDashboard(overrides: Partial<DashboardRecepcao> = {}): DashboardRecepcao {
+  const agendaHoje = overrides.agendaHoje ?? [];
   return {
-    content,
-    totalElements: content.length,
-    totalPages,
-    size: 100,
-    number,
+    dataReferencia: '2026-08-18',
+    consultasHoje: agendaHoje.length,
+    aguardandoConfirmacaoHoje: agendaHoje.filter(c => c.status === 'AGENDADA').length,
+    confirmadasHoje: agendaHoje.filter(c => c.status === 'CONFIRMADA').length,
+    aguardandoAtendimentoHoje: agendaHoje.filter(c => c.status === 'CHECK_IN').length,
+    emAtendimentoHoje: agendaHoje.filter(c => c.status === 'EM_ATENDIMENTO').length,
+    concluidasHoje: agendaHoje.filter(c => c.status === 'CONCLUIDA').length,
+    canceladasHoje: 0,
+    ausentesHoje: 0,
+    proximaConsulta: agendaHoje.find(c => c.status !== 'CONCLUIDA') ?? null,
+    agendaHoje,
+    ...overrides,
   };
-}
-
-function mockPages(pages: Array<Page<ConsultaListagem>>) {
-  vi.mocked(consultasApi.list).mockImplementation(async (pageNumber = 0) => pages[pageNumber] ?? page([], 1, pageNumber));
 }
 
 function renderDashboard() {
@@ -63,42 +67,40 @@ function closestCard(element: HTMLElement) {
 
 describe('FuncionarioDashboard', () => {
   beforeEach(() => {
-    vi.useFakeTimers({ toFake: ['Date'] });
-    vi.setSystemTime(new Date(2026, 7, 18, 9, 0, 0));
-    vi.mocked(consultasApi.list).mockReset();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
+    vi.mocked(dashboardApi.recepcao).mockReset();
   });
 
   it('exibe estado de carregamento enquanto a agenda inicial está pendente', () => {
-    vi.mocked(consultasApi.list).mockReturnValue(new Promise(() => undefined));
+    vi.mocked(dashboardApi.recepcao).mockReturnValue(new Promise(() => undefined));
 
     renderDashboard();
 
     expect(screen.getByRole('status')).toHaveTextContent('Carregando agenda de hoje.');
   });
 
-  it('carrega todas as páginas, calcula o resumo do dia e usa somente rotas existentes nas ações rápidas', async () => {
-    mockPages([
-      page([
-        consulta({ id: 1, nomePaciente: 'João Oliveira', dataHora: '2026-08-18T10:30:00' }),
-        consulta({ id: 2, nomePaciente: 'Paciente Amanhã', dataHora: '2026-08-19T08:00:00' }),
-      ], 2, 0),
-      page([
-        consulta({ id: 3, nomePaciente: 'Ana Souza', nomeMedico: 'Dr. Carlos Lima', dataHora: '2026-08-18T08:00:00', prioridade: 'PRIORITARIO', tipo: 'RETORNO' }),
-      ], 2, 1),
-    ]);
+  it('carrega resumo agregado do backend em uma única chamada e usa somente rotas existentes nas ações rápidas', async () => {
+    const c1 = consulta({ id: 3, nomePaciente: 'Ana Souza', nomeMedico: 'Dr. Carlos Lima', dataHora: '2026-08-18T08:00:00', prioridade: 'PRIORITARIO', tipo: 'RETORNO', status: 'CHECK_IN' });
+    const c2 = consulta({ id: 1, nomePaciente: 'João Oliveira', dataHora: '2026-08-18T10:30:00', status: 'CONFIRMADA' });
+
+    vi.mocked(dashboardApi.recepcao).mockResolvedValue(
+      makeDashboard({
+        agendaHoje: [c1, c2],
+        proximaConsulta: c2,
+        aguardandoAtendimentoHoje: 1,
+        confirmadasHoje: 1,
+        canceladasHoje: 1,
+      })
+    );
 
     renderDashboard();
 
-    await waitFor(() => expect(consultasApi.list).toHaveBeenCalledTimes(2));
-    expect(consultasApi.list).toHaveBeenNthCalledWith(1, 0, 100);
-    expect(consultasApi.list).toHaveBeenNthCalledWith(2, 1, 100);
+    await waitFor(() => expect(dashboardApi.recepcao).toHaveBeenCalledTimes(1));
 
     const consultasCard = closestCard(screen.getByText('Consultas de hoje'));
     expect(within(consultasCard).getByText('2')).toBeInTheDocument();
+
+    const filaCard = closestCard(screen.getByText('Aguardando (Check-in)'));
+    expect(within(filaCard).getByText('1')).toBeInTheDocument();
 
     const proximaConsultaCard = closestCard(screen.getByText('Próxima consulta'));
     expect(within(proximaConsultaCard).getByText('10:30')).toBeInTheDocument();
@@ -108,12 +110,6 @@ describe('FuncionarioDashboard', () => {
     const agendaCard = closestCard(screen.getByText('Agenda de hoje'));
     expect(within(agendaCard).getAllByText('Ana Souza').length).toBeGreaterThan(0);
     expect(within(agendaCard).getAllByText('João Oliveira').length).toBeGreaterThan(0);
-    expect(within(agendaCard).queryByText('Paciente Amanhã')).not.toBeInTheDocument();
-
-    expect(screen.queryByText(/Pacientes cadastrados/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Médicos ativos/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Total de consultas/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/Novo médico/i)).not.toBeInTheDocument();
 
     expect(screen.getByRole('link', { name: /Nova consulta/i })).toHaveAttribute('href', '/appointments');
     expect(screen.getByRole('link', { name: /Novo paciente/i })).toHaveAttribute('href', '/patients');
@@ -123,12 +119,14 @@ describe('FuncionarioDashboard', () => {
   });
 
   it('filtra a agenda localmente pelo nome do paciente', async () => {
-    mockPages([
-      page([
-        consulta({ id: 1, nomePaciente: 'João Oliveira', dataHora: '2026-08-18T10:30:00' }),
-        consulta({ id: 2, nomePaciente: 'Ana Souza', dataHora: '2026-08-18T14:00:00' }),
-      ]),
-    ]);
+    vi.mocked(dashboardApi.recepcao).mockResolvedValue(
+      makeDashboard({
+        agendaHoje: [
+          consulta({ id: 1, nomePaciente: 'João Oliveira', dataHora: '2026-08-18T10:30:00' }),
+          consulta({ id: 2, nomePaciente: 'Ana Souza', dataHora: '2026-08-18T14:00:00' }),
+        ],
+      })
+    );
 
     renderDashboard();
 
@@ -149,11 +147,7 @@ describe('FuncionarioDashboard', () => {
   });
 
   it('exibe estado vazio e ações para agenda sem consultas hoje', async () => {
-    mockPages([
-      page([
-        consulta({ id: 1, nomePaciente: 'Paciente Amanhã', dataHora: '2026-08-19T08:00:00' }),
-      ]),
-    ]);
+    vi.mocked(dashboardApi.recepcao).mockResolvedValue(makeDashboard({ agendaHoje: [] }));
 
     renderDashboard();
 
@@ -164,11 +158,13 @@ describe('FuncionarioDashboard', () => {
 
   it('exibe erro e permite tentar novamente', async () => {
     const user = userEvent.setup();
-    vi.mocked(consultasApi.list)
+    vi.mocked(dashboardApi.recepcao)
       .mockRejectedValueOnce(new Error('Falha de rede'))
-      .mockResolvedValueOnce(page([
-        consulta({ id: 1, nomePaciente: 'João Oliveira', dataHora: '2026-08-18T10:30:00' }),
-      ]));
+      .mockResolvedValueOnce(
+        makeDashboard({
+          agendaHoje: [consulta({ id: 1, nomePaciente: 'João Oliveira', dataHora: '2026-08-18T10:30:00' })],
+        })
+      );
 
     renderDashboard();
 
@@ -183,13 +179,17 @@ describe('FuncionarioDashboard', () => {
 
   it('atualiza a agenda ao clicar em atualizar', async () => {
     const user = userEvent.setup();
-    vi.mocked(consultasApi.list)
-      .mockResolvedValueOnce(page([
-        consulta({ id: 1, nomePaciente: 'João Oliveira', dataHora: '2026-08-18T10:30:00' }),
-      ]))
-      .mockResolvedValueOnce(page([
-        consulta({ id: 2, nomePaciente: 'Ana Souza', dataHora: '2026-08-18T11:30:00' }),
-      ]));
+    vi.mocked(dashboardApi.recepcao)
+      .mockResolvedValueOnce(
+        makeDashboard({
+          agendaHoje: [consulta({ id: 1, nomePaciente: 'João Oliveira', dataHora: '2026-08-18T10:30:00' })],
+        })
+      )
+      .mockResolvedValueOnce(
+        makeDashboard({
+          agendaHoje: [consulta({ id: 2, nomePaciente: 'Ana Souza', dataHora: '2026-08-18T11:30:00' })],
+        })
+      );
 
     renderDashboard();
 
@@ -203,12 +203,14 @@ describe('FuncionarioDashboard', () => {
 
   it('exibe badge de status e permite filtrar a agenda de hoje por status', async () => {
     const user = userEvent.setup();
-    mockPages([
-      page([
-        consulta({ id: 1, nomePaciente: 'João Oliveira', dataHora: '2026-08-18T10:30:00', status: 'AGENDADA' }),
-        consulta({ id: 2, nomePaciente: 'Ana Souza', dataHora: '2026-08-18T11:30:00', status: 'CHECK_IN' }),
-      ]),
-    ]);
+    vi.mocked(dashboardApi.recepcao).mockResolvedValue(
+      makeDashboard({
+        agendaHoje: [
+          consulta({ id: 1, nomePaciente: 'João Oliveira', dataHora: '2026-08-18T10:30:00', status: 'AGENDADA' }),
+          consulta({ id: 2, nomePaciente: 'Ana Souza', dataHora: '2026-08-18T11:30:00', status: 'CHECK_IN' }),
+        ],
+      })
+    );
 
     renderDashboard();
 

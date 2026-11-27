@@ -49,6 +49,7 @@ import { medicosApi } from '@/api/medicos';
 import { pacientesApi } from '@/api/pacientes';
 import { conveniosApi } from '@/api/convenios';
 import { useAuth } from '@/hooks/useAuth';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { canWrite } from '@/lib/rbac';
 import { extractApiError } from '@/lib/utils';
 import {
@@ -146,10 +147,32 @@ function isTodayOrPast(iso: string): boolean {
   return apptDay.getTime() <= today.getTime();
 }
 
-function buildListFilters(filter: StatusFilterOption): ConsultaListFilters | undefined {
-  if (filter === 'ATIVAS') return undefined;
-  if (filter === 'TODAS') return { incluirEncerradas: true };
-  return { status: filter };
+function buildListFilters(
+  filter: StatusFilterOption,
+  q: string,
+  medicoFilter: string,
+  dataInicio: string,
+  dataFim: string,
+): ConsultaListFilters | undefined {
+  const filters: ConsultaListFilters = {};
+  if (filter === 'TODAS') {
+    filters.incluirEncerradas = true;
+  } else if (filter !== 'ATIVAS') {
+    filters.status = filter;
+  }
+  if (q.trim()) {
+    filters.q = q.trim();
+  }
+  if (medicoFilter && medicoFilter !== 'ALL') {
+    filters.medicoId = Number(medicoFilter);
+  }
+  if (dataInicio) {
+    filters.dataInicio = dataInicio;
+  }
+  if (dataFim) {
+    filters.dataFim = dataFim;
+  }
+  return Object.keys(filters).length > 0 ? filters : undefined;
 }
 
 export default function Appointments() {
@@ -167,7 +190,11 @@ export default function Appointments() {
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [search, setSearch] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
   const [statusFilter, setStatusFilter] = useState<StatusFilterOption>('ATIVAS');
+  const [medicoFilter, setMedicoFilter] = useState('ALL');
+  const [dataInicioFilter, setDataInicioFilter] = useState('');
+  const [dataFimFilter, setDataFimFilter] = useState('');
 
   // Schedule modal
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
@@ -196,55 +223,98 @@ export default function Appointments() {
   const [historyItems, setHistoryItems] = useState<HistoricoStatusConsulta[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  const fetchAll = async (p = page, filter = statusFilter) => {
-    setLoading(true);
+  const fetchCatalogs = async () => {
+    if (!allowWrite) return;
     try {
-      const filters = buildListFilters(filter);
-      const listPromise = filters
-        ? consultasApi.list(p, 10, filters)
-        : consultasApi.list(p);
-
-      if (allowWrite) {
-        const [appts, allActive, docs, pats, convs] = await Promise.all([
-          listPromise,
-          consultasApi.list(0, 100),
-          medicosApi.list(0, 100),
-          pacientesApi.list(0, 100),
-          conveniosApi.listAll(),
-        ]);
-        setAppointments(appts.content);
-        setTotalPages(appts.totalPages);
-        setActiveConsultasForReturn(allActive.content);
-        setDoctors(docs.content);
-        setPatients(pats.content);
-        setConvenios(convs);
-      } else {
-        const appts = await listPromise;
-        setAppointments(appts.content);
-        setTotalPages(appts.totalPages);
-      }
+      const [allActive, docs, pats, convs] = await Promise.all([
+        consultasApi.list(0, 100),
+        medicosApi.list(0, 100),
+        pacientesApi.list(0, 100),
+        conveniosApi.listAll(),
+      ]);
+      setActiveConsultasForReturn(allActive.content);
+      setDoctors(docs.content);
+      setPatients(pats.content);
+      setConvenios(convs);
     } catch {
       toast.error('Erro ao carregar dados');
+    }
+  };
+
+  const fetchAppointments = async (
+    p = page,
+    filter = statusFilter,
+    q = debouncedSearch,
+    medico = medicoFilter,
+    dataInicio = dataInicioFilter,
+    dataFim = dataFimFilter,
+  ) => {
+    if (dataInicio && dataFim && dataInicio > dataFim) {
+      toast.error('A data inicial não pode ser posterior à data final.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const filters = buildListFilters(filter, q, allowWrite ? medico : 'ALL', dataInicio, dataFim);
+      const appts = filters
+        ? await consultasApi.list(p, 10, filters)
+        : await consultasApi.list(p);
+      setAppointments(appts.content);
+      setTotalPages(appts.totalPages);
+    } catch (err: any) {
+      toast.error(extractApiError(err, 'Erro ao carregar dados'));
     } finally {
       setLoading(false);
     }
   };
 
+  const refreshAfterMutation = async (p = page) => {
+    await Promise.all([
+      fetchAppointments(p, statusFilter, debouncedSearch, medicoFilter, dataInicioFilter, dataFimFilter),
+      allowWrite ? consultasApi.list(0, 100).then(r => setActiveConsultasForReturn(r.content)).catch(() => {}) : Promise.resolve(),
+    ]);
+  };
+
   useEffect(() => {
-    fetchAll(page, statusFilter);
-  }, [page, statusFilter, allowWrite]);
+    void fetchCatalogs();
+  }, [allowWrite]);
+
+  useEffect(() => {
+    void fetchAppointments(page, statusFilter, debouncedSearch, medicoFilter, dataInicioFilter, dataFimFilter);
+  }, [page, statusFilter, debouncedSearch, medicoFilter, dataInicioFilter, dataFimFilter, allowWrite]);
 
   const handleStatusFilterChange = (value: string) => {
     setStatusFilter(value as StatusFilterOption);
     setPage(0);
   };
 
-  const filteredAppointments = search.trim()
-    ? appointments.filter(a =>
-        [a.nomePaciente, a.nomeMedico]
-          .some(v => v?.toLowerCase().includes(search.toLowerCase()))
-      )
-    : appointments;
+  const handleSearchChange = (value: string) => {
+    setSearch(value);
+    setPage(0);
+  };
+
+  const handleMedicoFilterChange = (value: string) => {
+    setMedicoFilter(value);
+    setPage(0);
+  };
+
+  const hasActiveFilters =
+    Boolean(search.trim()) ||
+    statusFilter !== 'ATIVAS' ||
+    medicoFilter !== 'ALL' ||
+    Boolean(dataInicioFilter) ||
+    Boolean(dataFimFilter);
+
+  const handleClearFilters = () => {
+    setSearch('');
+    setStatusFilter('ATIVAS');
+    setMedicoFilter('ALL');
+    setDataInicioFilter('');
+    setDataFimFilter('');
+    setPage(0);
+  };
+
+  const filteredAppointments = appointments;
 
   const selectedPatientIdNum = Number(scheduleForm.idPaciente);
   const activeReturnOriginIds = new Set(
@@ -313,7 +383,7 @@ export default function Appointments() {
       setIsScheduleOpen(false);
       setScheduleForm(emptyScheduleForm());
       setPage(0);
-      fetchAll(0, statusFilter);
+      void refreshAfterMutation(0);
     } catch (err: any) {
       toast.error(extractApiError(err, 'Erro ao agendar consulta'));
     } finally {
@@ -331,7 +401,7 @@ export default function Appointments() {
     try {
       await action();
       toast.success(successMsg);
-      fetchAll(page, statusFilter);
+      void refreshAfterMutation(page);
     } catch (err: any) {
       toast.error(extractApiError(err, fallbackErr));
     } finally {
@@ -362,7 +432,7 @@ export default function Appointments() {
       toast.success('Consulta cancelada com sucesso');
       setIsCancelOpen(false);
       setCancelTarget(null);
-      fetchAll(page, statusFilter);
+      void refreshAfterMutation(page);
     } catch (err: any) {
       toast.error(extractApiError(err, 'Erro ao cancelar consulta'));
     } finally {
@@ -402,7 +472,7 @@ export default function Appointments() {
       await consultasApi.reagendar(rescheduleTarget.id, payload);
       toast.success('Consulta reagendada com sucesso');
       setRescheduleTarget(null);
-      fetchAll(page, statusFilter);
+      void refreshAfterMutation(page);
     } catch (err: any) {
       toast.error(extractApiError(err, 'Erro ao reagendar consulta'));
     } finally {
@@ -425,7 +495,7 @@ export default function Appointments() {
       );
       toast.success('Ausência registrada com sucesso');
       setAbsenceTarget(null);
-      fetchAll(page, statusFilter);
+      void refreshAfterMutation(page);
     } catch (err: any) {
       toast.error(extractApiError(err, 'Erro ao registrar ausência'));
     } finally {
@@ -471,30 +541,80 @@ export default function Appointments() {
         />
 
         <Card className="border-border">
-          <div className="p-6 flex flex-col gap-4 sm:flex-row sm:items-center">
-            <div className="flex-1">
-              <SearchInput
-                placeholder="Buscar por paciente ou médico..."
-                value={search}
-                onChange={setSearch}
-              />
+          <div className="p-6 space-y-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
+              <div className="flex-1">
+                <SearchInput
+                  placeholder="Buscar por paciente ou médico..."
+                  value={search}
+                  onChange={handleSearchChange}
+                />
+              </div>
+              <div className="w-full lg:w-56">
+                <Label className="sr-only" htmlFor="statusFilter">Filtrar por status</Label>
+                <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
+                  <SelectTrigger id="statusFilter" aria-label="Filtrar por status">
+                    <SelectValue placeholder="Filtrar por status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ATIVAS">Ativas na agenda (padrão)</SelectItem>
+                    <SelectItem value="TODAS">Todas (inclui encerradas)</SelectItem>
+                    {allStatusConsultas.map(status => (
+                      <SelectItem key={status} value={status}>
+                        {statusConsultaLabel[status]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {allowWrite && (
+                <div className="w-full lg:w-56">
+                  <Label className="sr-only" htmlFor="medicoFilter">Filtrar por médico</Label>
+                  <Select value={medicoFilter} onValueChange={handleMedicoFilterChange}>
+                    <SelectTrigger id="medicoFilter" aria-label="Filtrar por médico">
+                      <SelectValue placeholder="Todos os médicos" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL">Todos os médicos</SelectItem>
+                      {doctors.map(doc => (
+                        <SelectItem key={doc.id} value={String(doc.id)}>
+                          {doc.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
-            <div className="w-full sm:w-64">
-              <Label className="sr-only" htmlFor="statusFilter">Filtrar por status</Label>
-              <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
-                <SelectTrigger id="statusFilter" aria-label="Filtrar por status">
-                  <SelectValue placeholder="Filtrar por status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ATIVAS">Ativas na agenda (padrão)</SelectItem>
-                  <SelectItem value="TODAS">Todas (inclui encerradas)</SelectItem>
-                  {allStatusConsultas.map(status => (
-                    <SelectItem key={status} value={status}>
-                      {statusConsultaLabel[status]}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="w-full sm:w-44">
+                <Label className="mb-1 block text-xs text-muted-foreground" htmlFor="dataInicioFilter">
+                  Data inicial
+                </Label>
+                <Input
+                  id="dataInicioFilter"
+                  type="date"
+                  value={dataInicioFilter}
+                  onChange={e => { setDataInicioFilter(e.target.value); setPage(0); }}
+                />
+              </div>
+              <div className="w-full sm:w-44">
+                <Label className="mb-1 block text-xs text-muted-foreground" htmlFor="dataFimFilter">
+                  Data final
+                </Label>
+                <Input
+                  id="dataFimFilter"
+                  type="date"
+                  value={dataFimFilter}
+                  onChange={e => { setDataFimFilter(e.target.value); setPage(0); }}
+                />
+              </div>
+              {hasActiveFilters && (
+                <Button type="button" variant="outline" size="sm" onClick={handleClearFilters}>
+                  Limpar filtros
+                </Button>
+              )}
             </div>
           </div>
         </Card>
