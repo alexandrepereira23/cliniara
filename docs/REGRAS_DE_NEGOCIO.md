@@ -248,6 +248,9 @@ Modelo profissional recomendado:
 | `GET /ia/resumo-historico/{pacienteId}` | — | — | ✅ | — |
 | `GET /auditoria/prontuarios/{prontuarioId}` | — | — | — | ✅ |
 | `GET /auditoria/{recursoTipo}/{recursoId}` | — | — | — | ✅ |
+| `GET /dashboard/recepcao` | — | ✅ | — | — |
+| `GET /dashboard/medico` | — | — | ✅ (próprios dados) | — |
+| `GET /dashboard/gestor` | — | — | — | ✅ (apenas agregados) |
 
 ## Política de Privacidade Clínica
 

@@ -17,7 +17,7 @@ cd backend && ./mvnw spring-boot:run
 # Build completo do backend (usar após mudanças em @Value ou configuração)
 cd backend && ./mvnw clean package
 
-# Rodar todos os testes do backend (262 testes)
+# Rodar todos os testes do backend (279 testes)
 cd backend && ./mvnw test
 
 # Rodar uma classe de teste específica no backend
@@ -53,9 +53,9 @@ O padrão do projeto é: variável no `.env` → mapeada em `application.propert
 
 ### Camadas do Backend
 
-- **`controller/`** — 14 controllers REST (`AutenticacaoController`, `MedicoController`, `MedicoConvenioController`, `PacientesController`, `ConsultaController`, `DisponibilidadeMedicoController`, `ProntuarioController`, `PrescricaoController`, `AtestadoController`, `ConvenioController`, `ConvenioPacienteController`, `AuditoriaController`, `EspecialidadeController`, `IaController`, `EnderecoController`)
+- **`controller/`** — 16 controllers REST (`AutenticacaoController`, `MedicoController`, `MedicoConvenioController`, `PacientesController`, `ConsultaController`, `DisponibilidadeMedicoController`, `ProntuarioController`, `PrescricaoController`, `AtestadoController`, `ConvenioController`, `ConvenioPacienteController`, `AuditoriaController`, `EspecialidadeController`, `IaController`, `EnderecoController`, `DashboardController`)
 - **`domain/<entidade>/`** — entidades JPA, repositories, enums, DTOs (records) e serviços de domínio (`AgendaDeConsultas`, `AutenticacaoService`)
-- **`service/`** — serviços de aplicação (`UsuarioService`, `MedicoService`, `PacienteService`, `ConsultaService`, `EspecialidadeService`, `ConvenioService`, `ConvenioPacienteService`, `ProntuarioService`, `PrescricaoService`, `AtestadoService`, `AuditoriaProntuarioService`, `IaService`, `ConsultaCepService`)
+- **`service/`** — serviços de aplicação (`UsuarioService`, `MedicoService`, `PacienteService`, `ConsultaService`, `EspecialidadeService`, `ConvenioService`, `ConvenioPacienteService`, `ProntuarioService`, `PrescricaoService`, `AtestadoService`, `AuditoriaProntuarioService`, `IaService`, `ConsultaCepService`, `DashboardService`, `BuscaUtil`)
 - **`infra/security/`** — filtro JWT (`SecurityFillter`), rate limiting (`RateLimitFilter`), configuração Spring Security e CORS (`SecurityConfigurations`), geração/validação JWT (`TokenService`), criação idempotente do admin inicial (`AdminInitializer`)
 - **`infra/aop/`** — auditoria LGPD automática via AspectJ (`AuditoriaProntuarioAspect`) sobre `ProntuarioService`, `PrescricaoService` e `AtestadoService`
 - **`infra/cep/`** — cliente HTTP `CepClient` / `RestClientCepClient` (ACL para o serviço externo `Consultar-Cep`)
@@ -123,7 +123,7 @@ Monorepo — frontend SPA em `frontend/`.
 - **wouter** — roteamento client-side leve
 - Axios (client HTTP com interceptor JWT em `src/api/axios.ts` e base default `/api`)
 - React Hook Form + Zod v4, framer-motion, recharts, sonner, Lucide React
-- Vitest + Testing Library (43 testes automatizados)
+- Vitest + Testing Library (47 testes automatizados)
 
 ### Comandos
 
@@ -136,7 +136,7 @@ npm install
 # Dev server (http://localhost:5173 — proxy /api -> http://localhost:8080)
 npm run dev
 
-# Executar testes automatizados (43 testes)
+# Executar testes automatizados (47 testes)
 npm test
 
 # Testes E2E com Playwright (9 testes; sobe backend e frontend sozinho, ver docs/TESTES.md)
@@ -156,15 +156,15 @@ npm audit
 
 ```text
 frontend/src/
-├── api/               # axios.ts, auth.ts, cep.ts, medicos.ts, pacientes.ts, consultas.ts,
+├── api/               # axios.ts, auth.ts, cep.ts, dashboard.ts, medicos.ts, pacientes.ts, consultas.ts,
 │                      # prontuarios.ts, prescricoes.ts, atestados.ts, especialidades.ts,
 │                      # convenios.ts, medicoConvenios.ts, convenioPaciente.ts, disponibilidade.ts,
 │                      # auditoria.ts, ia.ts (+ testes unitários axios.test.ts, cep.test.ts)
 ├── contexts/          # AuthContext.tsx (+ AuthContext.test.tsx), ThemeContext.tsx
-├── hooks/             # useAuth.ts, useMobile.tsx, useComposition.ts, usePersistFn.ts
+├── hooks/             # useAuth.ts, useDebouncedValue.ts, useMobile.tsx, useComposition.ts, usePersistFn.ts
 ├── lib/               # authSession.ts, consultaStatus.ts, rbac.ts, utils.ts
 ├── components/
-│   ├── dashboard/     # FuncionarioDashboard.tsx (+ test), MedicoDashboard.tsx
+│   ├── dashboard/     # FuncionarioDashboard.tsx (+ test), MedicoDashboard.tsx, GestorDashboard.tsx (+ test)
 │   ├── ui/            # shadcn/ui + Pagination, Spinner
 │   └── DashboardLayout.tsx, PageHeader.tsx, Badge.tsx, EmptyState.tsx, SearchInput.tsx, ErrorBoundary.tsx
 ├── pages/             # Login, Dashboard, Users, Doctors, Patients, Appointments,
@@ -180,7 +180,7 @@ frontend/src/
 | Path | Página | Guarda no Frontend |
 |------|--------|--------------------|
 | `/login` | `Login` | Pública |
-| `/` | `Dashboard` | `DashboardRoute` (`ROLE_ADMIN` → `/users`; `AUDITOR`/`GESTOR` → `/audit`) |
+| `/` | `Dashboard` | `DashboardRoute` (`ROLE_ADMIN` → `/users`; `ROLE_AUDITOR` → `/audit`; `FUNCIONARIO`/`MEDICO`/`GESTOR` → `/`) |
 | `/users` | `Users` | `AdminRoute` (apenas `ROLE_ADMIN`) |
 | `/doctors` | `Doctors` | `NonAdminRoute` |
 | `/patients` | `Patients` | `NonAdminRoute` |

@@ -6,8 +6,8 @@ Este documento registra a estrategia de testes, comandos de validacao e pendenci
 
 Validado nesta revisao documental:
 
-- Backend: **262 testes passando** com `./mvnw test` em `backend/`.
-- Frontend: **43 testes passando** com `npm test` em `frontend/`.
+- Backend: **279 testes passando** com `./mvnw test` em `backend/`.
+- Frontend: **47 testes passando** com `npm test` em `frontend/`.
 - Frontend audit: **0 vulnerabilidades** reportadas em `npm audit` (corrigido com seguranca via `npm audit fix`).
 - E2E (Playwright + Chromium): **9 testes passando** com `npm run test:e2e` em `frontend/` (validado localmente no modo H2; o modo MySQL + Flyway roda no CI).
 - CI/CD (`.github/workflows/deploy.yml`): o job `test` executa `./mvnw --batch-mode test`, `npm test`, `npm run check` e `npm run build`; o job `e2e` (MySQL 8.0 real + Flyway `V1`–`V26`) executa `npm run test:e2e`. O `deploy` na VPS depende dos dois (`needs: [test, e2e]`).
@@ -104,6 +104,8 @@ Usam JUnit 5 e Mockito para validar regras de negocio sem subir o contexto web c
 | `AuditoriaProntuarioAspectTest` | 2 | Auditoria AOP para recursos clinicos |
 | `SecurityFillterTest` | 4 | Token JWT, bloqueio imediato de medico inativo (`401`) e preenchimento do `SecurityContext` |
 | `ConsultaCepServiceTest` | 10 | Validacao, normalizacao e erros de CEP |
+| `DashboardServiceTest` | 5 | Agregacoes dos dashboards de recepcao, medico (incluindo 403 sem vinculo) e gestor (taxas e periodo) |
+| `BuscaUtilTest` | 2 | Escape seguro de curingas LIKE (`!`) e validacao de intervalo invertido em `ConsultaService` |
 | `RestClientCepClientTest` | 7 | Integracao backend-to-backend com API de CEP |
 
 ### Testes de Controller (`@WebMvcTest`)
@@ -118,14 +120,15 @@ Validam rotas, serializacao, status HTTP e autorizacao por `@PreAuthorize`.
 | `ConsultaControllerTest` | 19 | Agendar, listar com filtros, historico, transicoes de status (`confirmar`, `check-in`, `iniciar`, `concluir`, `ausencia`), reagendar e cancelar consultas por role |
 | `ConvenioControllerTest` | 10 | CRUD de convenios e RBAC |
 | `ConvenioPacienteControllerTest` | 6 | Vinculo de convenio ao paciente |
+| `DashboardControllerTest` | 7 | RBAC e contratos HTTP de `/dashboard/recepcao`, `/dashboard/medico` e `/dashboard/gestor` |
 | `DisponibilidadeMedicoControllerTest` | 9 | Disponibilidade medica, validacao de intervalo/sobreposicao, permissoes e persistencia na inativacao |
 | `EnderecoControllerTest` | 8 | `GET /enderecos/cep/{cep}` e permissoes |
 | `EspecialidadeControllerTest` | 10 | CRUD de especialidades e permissoes |
-| `MedicoControllerTest` | 9 | CRUD de medicos, bloqueio `409 Conflict` com consultas pendentes e restricoes por role |
+| `MedicoControllerTest` | 10 | CRUD de medicos, busca/filtro por especialidade, bloqueio `409 Conflict` com consultas pendentes e restricoes por role |
 | `MedicoConvenioControllerTest` | 6 | Convenios aceitos pelo medico, desvinculo e erro 404 padronizado |
-| `PacientesControllerTest` | 10 | CRUD/listagem filtrada de pacientes |
+| `PacientesControllerTest` | 11 | CRUD/listagem filtrada e busca textual (`?q=`) de pacientes |
 | `PrescricaoControllerTest` | 15 | Criacao, detalhamento, listagem por prontuario e por paciente (`GET /prescricoes/paciente/{pacienteId}`) e permissoes |
-| `ProntuarioControllerTest` | 24 | Criacao, listagem, edicao, inativacao, bloqueio de `ROLE_FUNCIONARIO` (`403`) e mapeamento de `ResponseStatusException` (403/404/409/422) |
+| `ProntuarioControllerTest` | 25 | Criacao, listagem com busca (`?q=`), edicao, inativacao, bloqueio de `ROLE_FUNCIONARIO` (`403`) e mapeamento de `ResponseStatusException` (403/404/409/422) |
 
 ## Estrategia de Testes Frontend
 
@@ -136,12 +139,13 @@ Arquivos atuais de teste:
 | `frontend/src/api/cep.test.ts` | 2 | Cliente de CEP chama `/enderecos/cep/{cep}` e propaga erro |
 | `frontend/src/api/axios.test.ts` | 5 | Interceptor JWT, 401, 403 e login |
 | `frontend/src/contexts/AuthContext.test.tsx` | 3 | Persistencia de sessao, limpeza em 401 e logout |
-| `frontend/src/components/dashboard/FuncionarioDashboard.test.tsx` | 7 | Dashboard, agenda do dia, badge/filtro de status, loading, erro e retry |
-| `frontend/src/pages/Appointments.test.tsx` | 5 | Retorno restrito a consulta `CONCLUIDA`, `canceladoPor`, confirmacao/reagendamento/historico, acoes assistenciais do medico e modo leitura de auditor |
+| `frontend/src/components/dashboard/FuncionarioDashboard.test.tsx` | 7 | Dashboard agregado (`/dashboard/recepcao`), agenda do dia, badge/filtro de status, loading, erro e retry |
+| `frontend/src/components/dashboard/GestorDashboard.test.tsx` | 2 | Dashboard gerencial (`/dashboard/gestor`), KPIs agregados, troca de periodo (7/30/90d) e retry |
+| `frontend/src/pages/Appointments.test.tsx` | 6 | Retorno restrito a consulta `CONCLUIDA`, `canceladoPor`, confirmacao/reagendamento/historico, acoes do medico, filtros server-side (`q`/periodo) e modo leitura |
 | `frontend/src/pages/Audit.test.tsx` | 2 | Trilha por prontuario com `recursoTipo`/`recursoId` e consulta direta por recurso clinico |
 | `frontend/src/pages/Doctors.cep.test.tsx` | 3 | Busca de CEP no cadastro de medico |
 | `frontend/src/pages/Login.test.tsx` | 3 | Token invalido, erro 401 de credenciais e 403 de conta inativa |
-| `frontend/src/pages/MedicalRecords.test.tsx` | 5 | Detalhamento, edicao em 24h, bloqueio pos-24h, inativacao por auditor e seletor restrito a consultas `EM_ATENDIMENTO`/`CONCLUIDA` |
+| `frontend/src/pages/MedicalRecords.test.tsx` | 6 | Detalhamento, edicao em 24h, bloqueio pos-24h, inativacao por auditor, seletor restrito a `EM_ATENDIMENTO`/`CONCLUIDA` e busca server-side (`?q=`) |
 | `frontend/src/pages/Patients.cep.test.tsx` | 2 | Busca de CEP e payload sanitizado no cadastro de paciente |
 | `frontend/src/pages/Users.test.tsx` | 6 | Cadastro de usuarios e seletor de medicos disponiveis |
 

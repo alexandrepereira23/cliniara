@@ -42,7 +42,7 @@ npm run test:e2e   # Playwright; sobe backend e frontend sozinho (ver docs/TESTE
 ## Entry Points
 
 - `com.cliniara.api.ApiApplication` - main class
-- Controllers (15): `AutenticacaoController`, `MedicoController`, `MedicoConvenioController`, `PacientesController`, `ConsultaController`, `DisponibilidadeMedicoController`, `ProntuarioController`, `PrescricaoController`, `AtestadoController`, `ConvenioController`, `ConvenioPacienteController`, `AuditoriaController`, `EspecialidadeController`, `IaController`, `EnderecoController`
+- Controllers (16): `AutenticacaoController`, `MedicoController`, `MedicoConvenioController`, `PacientesController`, `ConsultaController`, `DisponibilidadeMedicoController`, `ProntuarioController`, `PrescricaoController`, `AtestadoController`, `ConvenioController`, `ConvenioPacienteController`, `AuditoriaController`, `EspecialidadeController`, `IaController`, `EnderecoController`, `DashboardController`
 
 ## Migrations applied
 
@@ -50,14 +50,14 @@ V1–V26 applied (next: V27)
 
 ## Tests
 
-262 tests passing no backend. Run from `backend/`: `./mvnw test`
-43 tests passing no frontend. Run from `frontend/`: `npm test`
+279 tests passing no backend. Run from `backend/`: `./mvnw test`
+47 tests passing no frontend. Run from `frontend/`: `npm test`
 9 E2E tests (Playwright, `frontend/e2e/`): `npm run test:e2e` from `frontend/`.
 CI workflow (`.github/workflows/deploy.yml`) runs backend tests, frontend tests, `npm run check`, `npm run build` (job `test`) and the E2E suite against MySQL 8.0 (job `e2e`) on every push/PR to `main`; deploy requires both.
 
-- Unit/context/security/client: `ApiApplicationTests` (1), `ExclusaoLogicaPersistenciaIntegrationTest` (4), `AgendaDeConsultasTest` (40), `MedicoServiceTest` (3), `ProntuarioServiceTest` (9), `EspecialidadeServiceTest` (8), `UsuarioServiceTest` (11), `IaServiceTest` (6), `AuditoriaProntuarioAspectTest` (2), `SecurityFillterTest` (4), `ConsultaCepServiceTest` (10), `RestClientCepClientTest` (7)
-- Controller (`@WebMvcTest`): `ConsultaControllerTest` (19), `MedicoControllerTest` (9), `PacientesControllerTest` (10), `ProntuarioControllerTest` (24), `PrescricaoControllerTest` (15), `AtestadoControllerTest` (10), `EspecialidadeControllerTest` (10), `AutenticacaoControllerTest` (17), `ConvenioControllerTest` (10), `ConvenioPacienteControllerTest` (6), `MedicoConvenioControllerTest` (6), `DisponibilidadeMedicoControllerTest` (9), `AuditoriaControllerTest` (4), `EnderecoControllerTest` (8)
-- Frontend (Vitest, `frontend/`: `npm test`): 43 testes em 11 arquivos (`FuncionarioDashboard.test.tsx` 7, `Users.test.tsx` 6, `axios.test.ts` 5, `Appointments.test.tsx` 5, `MedicalRecords.test.tsx` 5, `Doctors.cep.test.tsx` 3, `AuthContext.test.tsx` 3, `Login.test.tsx` 3, `Audit.test.tsx` 2, `Patients.cep.test.tsx` 2, `cep.test.ts` 2)
+- Unit/context/security/client: `ApiApplicationTests` (1), `ExclusaoLogicaPersistenciaIntegrationTest` (4), `AgendaDeConsultasTest` (40), `MedicoServiceTest` (3), `ProntuarioServiceTest` (9), `EspecialidadeServiceTest` (8), `UsuarioServiceTest` (11), `IaServiceTest` (6), `DashboardServiceTest` (5), `BuscaUtilTest` (2), `AuditoriaProntuarioAspectTest` (2), `SecurityFillterTest` (4), `ConsultaCepServiceTest` (10), `RestClientCepClientTest` (7)
+- Controller (`@WebMvcTest`): `ConsultaControllerTest` (19), `MedicoControllerTest` (10), `PacientesControllerTest` (11), `ProntuarioControllerTest` (25), `PrescricaoControllerTest` (15), `AtestadoControllerTest` (10), `EspecialidadeControllerTest` (10), `AutenticacaoControllerTest` (17), `ConvenioControllerTest` (10), `ConvenioPacienteControllerTest` (6), `MedicoConvenioControllerTest` (6), `DisponibilidadeMedicoControllerTest` (9), `AuditoriaControllerTest` (4), `EnderecoControllerTest` (8), `DashboardControllerTest` (7)
+- Frontend (Vitest, `frontend/`: `npm test`): 47 testes em 12 arquivos (`FuncionarioDashboard.test.tsx` 7, `Users.test.tsx` 6, `Appointments.test.tsx` 6, `MedicalRecords.test.tsx` 6, `axios.test.ts` 5, `Doctors.cep.test.tsx` 3, `AuthContext.test.tsx` 3, `Login.test.tsx` 3, `Audit.test.tsx` 2, `Patients.cep.test.tsx` 2, `cep.test.ts` 2, `GestorDashboard.test.tsx` 2)
 - See `docs/TESTES.md` for full strategy
 
 ## Gotchas

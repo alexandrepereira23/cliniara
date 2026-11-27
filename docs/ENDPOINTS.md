@@ -39,7 +39,7 @@ Perfis recomendados para ambiente profissional:
 | Método | Endpoint | Descrição | Roles |
 |--------|----------|-----------|-------|
 | `POST` | `/medicos` | Cadastrar médico | FUNCIONARIO |
-| `GET` | `/medicos` | Listar médicos ativos (paginado) | FUNCIONARIO, MEDICO, AUDITOR/GESTOR |
+| `GET` | `/medicos` | Listar médicos ativos (paginado; filtros opcionais `?q=` e `?especialidadeId=`) | FUNCIONARIO, MEDICO, AUDITOR/GESTOR |
 | `GET` | `/medicos/{id}` | Detalhar médico | FUNCIONARIO, MEDICO, AUDITOR/GESTOR |
 | `PUT` | `/medicos` | Atualizar médico (ID no body) | FUNCIONARIO |
 | `DELETE` | `/medicos/{id}` | Inativar médico (exclusão lógica; retorna `409 Conflict` se houver consultas futuras ou em atendimento vinculadas) | FUNCIONARIO |
@@ -54,7 +54,7 @@ Perfis recomendados para ambiente profissional:
 | Método | Endpoint | Descrição | Roles |
 |--------|----------|-----------|-------|
 | `POST` | `/pacientes` | Cadastrar paciente | FUNCIONARIO |
-| `GET` | `/pacientes` | Listar pacientes ativos (paginado) | FUNCIONARIO, AUDITOR/GESTOR; MEDICO apenas pacientes vinculados |
+| `GET` | `/pacientes` | Listar pacientes ativos (paginado; busca opcional `?q=` por nome, CPF ou e-mail) | FUNCIONARIO, AUDITOR/GESTOR; MEDICO apenas pacientes vinculados |
 | `GET` | `/pacientes/{id}` | Detalhar paciente | FUNCIONARIO, AUDITOR/GESTOR; MEDICO apenas pacientes vinculados |
 | `PUT` | `/pacientes` | Atualizar paciente (ID no body) | FUNCIONARIO |
 | `DELETE` | `/pacientes/{id}` | Inativar paciente (exclusão lógica) | FUNCIONARIO |
@@ -66,7 +66,7 @@ Perfis recomendados para ambiente profissional:
 | Método | Endpoint | Descrição | Roles |
 |--------|----------|-----------|-------|
 | `POST` | `/consultas` | Agendar consulta ou retorno (`consultaOrigemId` exige consulta `CONCLUIDA`) | FUNCIONARIO |
-| `GET` | `/consultas` | Listar consultas paginadas (filtros opcionais `?status=` e `?incluirEncerradas=true`) | FUNCIONARIO, AUDITOR/GESTOR, MEDICO* |
+| `GET` | `/consultas` | Listar consultas paginadas (filtros opcionais `?q=`, `?status=`, `?incluirEncerradas=true`, `?medicoId=`, `?dataInicio=`, `?dataFim=`) | FUNCIONARIO, AUDITOR/GESTOR, MEDICO* |
 | `GET` | `/consultas/{id}/historico` | Listar trilha cronológica de transições de status (quem, quando e motivo) | FUNCIONARIO, AUDITOR/GESTOR, MEDICO* |
 | `PATCH` | `/consultas/{id}/confirmar` | Confirmar consulta (`AGENDADA → CONFIRMADA`) | FUNCIONARIO |
 | `PATCH` | `/consultas/{id}/check-in` | Registrar chegada (`AGENDADA \| CONFIRMADA → CHECK_IN`) | FUNCIONARIO |
@@ -112,6 +112,16 @@ Perfis recomendados para ambiente profissional:
 
 ---
 
+## Dashboard (Indicadores Agregados)
+
+| Método | Endpoint | Descrição | Roles |
+|--------|----------|-----------|-------|
+| `GET` | `/dashboard/recepcao` | Resumo diário da recepção por status, próxima consulta e agenda do dia (`?data=YYYY-MM-DD` opcional) | FUNCIONARIO |
+| `GET` | `/dashboard/medico` | Indicadores reais da agenda do médico logado (fila de check-in, urgências, próximos 7 dias, pacientes, prontuários e agenda do dia) | MEDICO |
+| `GET` | `/dashboard/gestor` | Indicadores gerenciais agregados (`?dias=30`, de 1 a 365): taxas de cancelamento/absenteísmo, distribuição por status e produção por especialidade, sem dados clínicos individuais | GESTOR, AUDITOR |
+
+---
+
 ## Prontuários
 
 | Método | Endpoint | Descrição | Roles |
@@ -119,7 +129,7 @@ Perfis recomendados para ambiente profissional:
 | `POST` | `/prontuarios` | Criar prontuário vinculado a uma consulta | MEDICO (da consulta) |
 | `GET` | `/prontuarios/{id}` | Detalhar prontuário | AUDITOR/GESTOR, MEDICO* |
 | `GET` | `/prontuarios/paciente/{id}` | Histórico clínico do paciente | AUDITOR/GESTOR, MEDICO* |
-| `GET` | `/prontuarios` | Listar prontuários ativos (paginado) | AUDITOR/GESTOR, MEDICO* |
+| `GET` | `/prontuarios` | Listar prontuários ativos (paginado; busca opcional `?q=` por paciente, diagnóstico ou CID-10) | AUDITOR/GESTOR, MEDICO* |
 | `PUT` | `/prontuarios` | Editar prontuário (ID no body, janela de 24h) | MEDICO (criador, dentro de 24h) |
 | `DELETE` | `/prontuarios/{id}` | Inativar prontuário | AUDITOR/GESTOR |
 

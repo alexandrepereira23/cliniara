@@ -6,17 +6,14 @@ Este arquivo centraliza melhorias futuras, correcoes tecnicas mapeadas, pendenci
 
 ## Prioridade Alta
 
-*(Todos os itens iniciais de Prioridade Alta foram concluídos e movidos para "Itens Ja Resolvidos". Próxima prioridade sugerida: Busca Server-Side, Filtros e Indicadores Reais de Dashboard.)*
+*(Todos os itens do Nivel 1 operacional — integridade clinica, alinhamento frontend/auditoria, rebranding Cliniara, ciclo completo da consulta, busca server-side e dashboards agregados — foram concluidos. Proximo marco de fechamento do Nivel 1: reescrita dedicada do `README.md` de portfolio.)*
 
 ## Prioridade Media
 
-### Otimizacao, Busca Server-Side e Escalabilidade
+### Otimizacao e Escalabilidade
 
-- Avaliar lazy loading (`React.lazy`) das rotas em `App.tsx` e medir reducao de chunks com `npm run build`.
-- Implementar busca e filtros reais no servidor para pacientes, medicos, consultas e prontuarios (substituindo o filtro client-side restrito a pagina atual).
 - Adicionar paginacao/busca pesquisavel nos seletores de formulario (incluindo `GET /auth/medicos-disponiveis`, pacientes e medicos no agendamento).
-- Criar endpoints agregados no backend para indicadores dos dashboards (recepcao, medico e gestor).
-- Criar testes de integracao com MySQL real / Testcontainers validando todas as migrations Flyway (`V1`–`V25`) e o lock pessimista de vinculo medico-usuario sob concorrencia real.
+- Criar testes de integracao com MySQL real / Testcontainers validando todas as migrations Flyway (`V1`–`V26`) e o lock pessimista de vinculo medico-usuario sob concorrencia real.
 
 ### Agenda Operacional
 
@@ -82,3 +79,6 @@ Este arquivo centraliza melhorias futuras, correcoes tecnicas mapeadas, pendenci
 - Rebranding profundo para **Cliniara** (`com.cliniara.api`, UI, Docker/Caddy/CI com fallbacks de zero downtime e documentacao interna sincronizada).
 - Ciclo completo da consulta (`V26`): 8 status (`AGENDADA`, `CONFIRMADA`, `CHECK_IN`, `EM_ATENDIMENTO`, `CONCLUIDA`, `CANCELADA`, `AUSENTE`, `REAGENDADA`), trilha auditavel em `consulta_historico_status`, reagendamento com vinculo historico (`consultaReagendadaDeId`), regra de 24h restrita ao `PACIENTE`, exigencia de `EM_ATENDIMENTO`/`CONCLUIDA` para prontuario e `CONCLUIDA` para retorno, suporte a `PATCH` no CORS e acoes por perfil no frontend (`Appointments`, `MedicalRecords`, dashboards).
 - Protecao na inativacao de medico (`DELETE /medicos/{id}`): bloqueio `409 Conflict` informando a contagem de consultas futuras pendentes ou em atendimento vinculadas ao medico, com exibicao da mensagem na tela `Doctors.tsx` e validacao E2E.
+- Busca e filtros server-side nos 4 modulos clinicos (`GET /pacientes?q=`, `GET /medicos?q=&especialidadeId=`, `GET /consultas?q=&status=&medicoId=&dataInicio=&dataFim=` e `GET /prontuarios?q=`) com `BuscaUtil` (`ESCAPE '!'`) e debounce de 300ms no frontend.
+- Dashboards agregados no backend (`GET /dashboard/recepcao`, `GET /dashboard/medico`, `GET /dashboard/gestor`) com eliminacao da paginacao em loop e do teto de 100 consultas, alem da nova tela `GestorDashboard.tsx` (home `/` para `ROLE_GESTOR` sem dados clinicos individuais).
+- Code splitting por rota com `React.lazy` + `Suspense` em `App.tsx`, reduzindo o bundle principal do Vite de `667.87 kB` para `366.98 kB` (zero warnings de chunk > 500 kB).

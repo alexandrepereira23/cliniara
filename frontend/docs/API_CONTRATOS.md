@@ -167,7 +167,7 @@ Perfis de acesso (`Role` em `src/types/auth.ts`):
 { id: number, nome: string, email: string, crm: string, telefone: string, especialidade: string, endereco: EnderecoPayload }
 ```
 
-### `GET /medicos?page=0&size=10` (`ROLE_FUNCIONARIO` / `ROLE_MEDICO` / `ROLE_AUDITOR` / `ROLE_GESTOR`)
+### `GET /medicos?page=0&size=10&q=&especialidadeId=` (`ROLE_FUNCIONARIO` / `ROLE_MEDICO` / `ROLE_AUDITOR` / `ROLE_GESTOR`)
 ```ts
 // Response 200 — Page<MedicoListagem> (ROLE_MEDICO recebe apenas o próprio registro)
 { content: Array<{ id: number, nome: string, email: string, crm: string, especialidade: string }>, ... }
@@ -229,7 +229,7 @@ Perfis de acesso (`Role` em `src/types/auth.ts`):
 { id: number, nome: string, email: string, telefone: string, cpf: string, endereco: EnderecoPayload, ativo: boolean }
 ```
 
-### `GET /pacientes?page=0&size=10` (`ROLE_FUNCIONARIO` / `ROLE_AUDITOR` / `ROLE_GESTOR`; `ROLE_MEDICO` apenas vinculados)
+### `GET /pacientes?page=0&size=10&q=` (`ROLE_FUNCIONARIO` / `ROLE_AUDITOR` / `ROLE_GESTOR`; `ROLE_MEDICO` apenas vinculados)
 ```ts
 // Response 200 — Page<PacienteListagem>
 { content: Array<{ id: number, nome: string, email: string, cpf: string }>, ... }
@@ -284,7 +284,7 @@ Perfis de acesso (`Role` em `src/types/auth.ts`):
 }
 ```
 
-### `GET /consultas?page=0&size=10&status=&incluirEncerradas=false` (`ROLE_FUNCIONARIO` / `ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
+### `GET /consultas?page=0&size=10&status=&incluirEncerradas=false&q=&medicoId=&dataInicio=&dataFim=` (`ROLE_FUNCIONARIO` / `ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
 ```ts
 // Response 200 — Page<ConsultaListagem> (ROLE_MEDICO vê apenas suas consultas)
 {
@@ -330,6 +330,67 @@ Perfis de acesso (`Role` em `src/types/auth.ts`):
 
 ---
 
+## Dashboard (`src/api/dashboard.ts`)
+
+### `GET /dashboard/recepcao?data=` (`ROLE_FUNCIONARIO`)
+```ts
+// Response 200 — DashboardRecepcao
+{
+  dataReferencia: string,
+  consultasHoje: number,
+  aguardandoConfirmacaoHoje: number,
+  confirmadasHoje: number,
+  aguardandoAtendimentoHoje: number,
+  emAtendimentoHoje: number,
+  concluidasHoje: number,
+  canceladasHoje: number,
+  ausentesHoje: number,
+  proximaConsulta: ConsultaListagem | null,
+  agendaHoje: ConsultaListagem[]
+}
+```
+
+### `GET /dashboard/medico?data=` (`ROLE_MEDICO`)
+```ts
+// Response 200 — DashboardMedico (escopado ao médico logado)
+{
+  dataReferencia: string,
+  consultasHoje: number,
+  urgenciasHoje: number,
+  filaEsperaHoje: number,
+  emAtendimentoAgora: number,
+  concluidasHoje: number,
+  proximosSeteDias: number,
+  totalPacientesVinculados: number,
+  totalConsultasAtivas: number,
+  totalProntuarios: number,
+  agendaHoje: ConsultaListagem[]
+}
+```
+
+### `GET /dashboard/gestor?dias=30` (`ROLE_GESTOR` / `ROLE_AUDITOR`)
+```ts
+// Query: dias entre 1 e 365 (default 30)
+// Response 200 — DashboardGestor (100% agregado, sem diagnósticos individuais)
+{
+  periodoDias: number,
+  consultasHoje: number,
+  totalConsultasPeriodo: number,
+  concluidasPeriodo: number,
+  canceladasPeriodo: number,
+  ausentesPeriodo: number,
+  reagendadasPeriodo: number,
+  taxaCancelamentoPercentual: number,
+  taxaAbsenteismoPercentual: number,
+  medicosAtivos: number,
+  pacientesAtivos: number,
+  porStatus: Array<{ status: StatusConsulta, quantidade: number }>,
+  porEspecialidade: Array<{ especialidade: string, total: number, concluidas: number, canceladas: number, ausentes: number }>
+}
+```
+
+---
+
 ## Prontuários (`src/api/prontuarios.ts`)
 
 ### `POST /prontuarios` (`ROLE_MEDICO`)
@@ -341,7 +402,7 @@ Perfis de acesso (`Role` em `src/types/auth.ts`):
 { id: number, consultaId: number, nomeMedico: string, nomePaciente: string, anamnese: string, diagnostico: string, cid10?: string, observacoes?: string, dataRegistro: string }
 ```
 
-### `GET /prontuarios` (`ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
+### `GET /prontuarios?page=0&size=10&q=` (`ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
 ```ts
 // Response 200 — Page<ProntuarioListagem> (ROLE_MEDICO vê apenas os seus; ROLE_FUNCIONARIO recebe 403)
 { content: Array<{ id: number, consultaId: number, nomePaciente: string, diagnostico: string, dataRegistro: string }>, ... }
