@@ -13,7 +13,9 @@ public record DadosListagemConsulta(
         @Schema(description = "Data e hora da consulta") LocalDateTime dataHora,
         @Schema(description = "Prioridade: ROTINA, PRIORITARIO ou URGENCIA") PrioridadeConsulta prioridade,
         @Schema(description = "Tipo: NORMAL ou RETORNO") TipoConsulta tipo,
-        @Schema(description = "ID da consulta original quando retorno") Long consultaOrigemId
+        @Schema(description = "Status do ciclo clínico da consulta") StatusConsulta status,
+        @Schema(description = "ID da consulta original quando retorno") Long consultaOrigemId,
+        @Schema(description = "ID da consulta anterior quando reagendada") Long consultaReagendadaDeId
 ) {
     public DadosListagemConsulta(Consulta consulta) {
         this(
@@ -25,7 +27,9 @@ public record DadosListagemConsulta(
                 consulta.getDataHora(),
                 consulta.getPrioridade(),
                 consulta.getTipo(),
-                consulta.getConsultaOrigem() != null ? consulta.getConsultaOrigem().getId() : null
+                consulta.getStatus(),
+                consulta.getConsultaOrigem() != null ? consulta.getConsultaOrigem().getId() : null,
+                consulta.getConsultaReagendadaDe() != null ? consulta.getConsultaReagendadaDe().getId() : null
         );
     }
 }

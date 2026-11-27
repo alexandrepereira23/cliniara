@@ -11,7 +11,9 @@ public record DadosDetalhamentoConsulta(
         @Schema(description = "Data e hora da consulta") LocalDateTime data,
         @Schema(description = "Prioridade: ROTINA, PRIORITARIO ou URGENCIA") PrioridadeConsulta prioridade,
         @Schema(description = "Tipo: NORMAL ou RETORNO") TipoConsulta tipo,
+        @Schema(description = "Status atual da consulta") StatusConsulta status,
         @Schema(description = "ID da consulta original (preenchido apenas quando tipo = RETORNO)") Long consultaOrigemId,
+        @Schema(description = "ID da consulta anterior quando resultante de reagendamento") Long consultaReagendadaDeId,
         @Schema(description = "ID do convênio utilizado na consulta") Long convenioId
 ) {
     public DadosDetalhamentoConsulta(Consulta consulta) {
@@ -22,7 +24,9 @@ public record DadosDetalhamentoConsulta(
                 consulta.getDataHora(),
                 consulta.getPrioridade(),
                 consulta.getTipo(),
+                consulta.getStatus(),
                 consulta.getConsultaOrigem() != null ? consulta.getConsultaOrigem().getId() : null,
+                consulta.getConsultaReagendadaDe() != null ? consulta.getConsultaReagendadaDe().getId() : null,
                 consulta.getConvenio() != null ? consulta.getConvenio().getId() : null
         );
     }

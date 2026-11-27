@@ -2,6 +2,7 @@ package com.cliniara.api.service;
 
 import com.cliniara.api.domain.consulta.Consulta;
 import com.cliniara.api.domain.consulta.ConsultaRepository;
+import com.cliniara.api.domain.consulta.StatusConsulta;
 import com.cliniara.api.domain.medico.Medico;
 import com.cliniara.api.domain.medico.MedicoRepository;
 import com.cliniara.api.domain.paciente.Paciente;
@@ -49,8 +50,13 @@ class ProntuarioServiceTest {
     }
 
     private Consulta consultaAtiva(Medico medico) {
+        return consultaComStatus(medico, StatusConsulta.EM_ATENDIMENTO);
+    }
+
+    private Consulta consultaComStatus(Medico medico, StatusConsulta status) {
         var c = mock(Consulta.class);
-        when(c.isAtivo()).thenReturn(true);
+        when(c.isAtivo()).thenReturn(status.isAtivaNaAgenda());
+        when(c.getStatus()).thenReturn(status);
         when(c.getMedico()).thenReturn(medico);
         when(c.getPaciente()).thenReturn(mock(Paciente.class));
         return c;
@@ -65,14 +71,43 @@ class ProntuarioServiceTest {
     @Test
     @DisplayName("deve lançar 400 quando consulta está cancelada ao criar prontuário")
     void deveLancar400QuandoConsultaCancelada() {
-        var consulta = mock(Consulta.class);
-        when(consulta.isAtivo()).thenReturn(false);
+        var consulta = consultaComStatus(medicoMock(1L), StatusConsulta.CANCELADA);
         when(consultaRepository.findById(1L)).thenReturn(Optional.of(consulta));
 
         assertThatThrownBy(() -> prontuarioService.criar(dadosCadastro(), usuarioMedico()))
                 .isInstanceOf(ResponseStatusException.class)
                 .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
                         .isEqualTo(HttpStatus.BAD_REQUEST));
+    }
+
+    @Test
+    @DisplayName("deve lançar 400 quando consulta ainda não foi iniciada (AGENDADA ou CHECK_IN)")
+    void deveLancar400QuandoConsultaAindaNaoIniciada() {
+        var consulta = consultaComStatus(medicoMock(1L), StatusConsulta.CHECK_IN);
+        when(consultaRepository.findById(1L)).thenReturn(Optional.of(consulta));
+
+        assertThatThrownBy(() -> prontuarioService.criar(dadosCadastro(), usuarioMedico()))
+                .isInstanceOf(ResponseStatusException.class)
+                .satisfies(ex -> assertThat(((ResponseStatusException) ex).getStatusCode())
+                        .isEqualTo(HttpStatus.BAD_REQUEST));
+    }
+
+    @Test
+    @DisplayName("deve criar prontuário com sucesso quando consulta está CONCLUIDA")
+    void deveCriarProntuarioQuandoConsultaConcluida() {
+        var medico = medicoMock(1L);
+        var consulta = consultaComStatus(medico, StatusConsulta.CONCLUIDA);
+        var usuario = usuarioMedico();
+
+        when(consultaRepository.findById(1L)).thenReturn(Optional.of(consulta));
+        when(prontuarioRepository.existsByConsultaId(1L)).thenReturn(false);
+        when(medicoRepository.findByUsuario(usuario)).thenReturn(Optional.of(medico));
+        when(prontuarioRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        var resultado = prontuarioService.criar(dadosCadastro(), usuario);
+
+        assertThat(resultado).isNotNull();
+        verify(prontuarioRepository).save(any(Prontuario.class));
     }
 
     @Test

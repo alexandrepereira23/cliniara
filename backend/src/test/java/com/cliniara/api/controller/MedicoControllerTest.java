@@ -7,6 +7,7 @@ import com.cliniara.api.domain.medico.*;
 import com.cliniara.api.domain.usuario.Perfil;
 import com.cliniara.api.domain.usuario.Usuario;
 import com.cliniara.api.domain.usuario.UsuarioRepository;
+import com.cliniara.api.exception.ConflitoException;
 import com.cliniara.api.infra.security.TokenService;
 import com.cliniara.api.service.MedicoService;
 import org.junit.jupiter.api.DisplayName;
@@ -25,6 +26,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -142,6 +144,19 @@ class MedicoControllerTest {
         mvc.perform(delete("/medicos/1")
                         .with(user(usuarioFuncionario())).with(csrf()))
                 .andExpect(status().isNoContent());
+    }
+
+    @Test
+    @DisplayName("deve retornar 409 Conflict ao tentar inativar médico com consultas pendentes")
+    void deveRetornar409AoInativarMedicoComConsultasPendentes() throws Exception {
+        doThrow(new ConflitoException("Não é possível inativar o médico pois existem 2 consulta(s) futura(s)"))
+                .when(medicoService).excluir(1L);
+
+        mvc.perform(delete("/medicos/1")
+                        .with(user(usuarioFuncionario())).with(csrf()))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.campo").value("conflito"))
+                .andExpect(jsonPath("$.mensagem").value("Não é possível inativar o médico pois existem 2 consulta(s) futura(s)"));
     }
 
     @Test

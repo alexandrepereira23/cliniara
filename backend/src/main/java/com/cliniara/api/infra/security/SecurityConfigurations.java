@@ -97,7 +97,7 @@ public class SecurityConfigurations {
                 "https://voll-med-git-main-alexandre-henriques-projects-7963356e.vercel.app"
         ));
         configuration.setAllowedOriginPatterns(List.of("https://cliniara-*.vercel.app", "https://voll-*.vercel.app"));
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

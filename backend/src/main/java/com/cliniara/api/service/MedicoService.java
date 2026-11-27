@@ -1,22 +1,33 @@
 package com.cliniara.api.service;
 
+import com.cliniara.api.domain.consulta.ConsultaRepository;
 import com.cliniara.api.domain.medico.*;
 import com.cliniara.api.domain.usuario.Perfil;
 import com.cliniara.api.domain.usuario.Usuario;
+import com.cliniara.api.exception.ConflitoException;
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
 
 @Service
 public class MedicoService {
 
     private final MedicoRepository medicoRepository;
     private final EspecialidadeRepository especialidadeRepository;
+    private final ConsultaRepository consultaRepository;
 
-    public MedicoService(MedicoRepository medicoRepository, EspecialidadeRepository especialidadeRepository) {
+    public MedicoService(
+            MedicoRepository medicoRepository,
+            EspecialidadeRepository especialidadeRepository,
+            ConsultaRepository consultaRepository
+    ) {
         this.medicoRepository = medicoRepository;
         this.especialidadeRepository = especialidadeRepository;
+        this.consultaRepository = consultaRepository;
     }
 
     @Transactional
@@ -36,7 +47,17 @@ public class MedicoService {
 
     @Transactional
     public void excluir(Long id) {
-        var medico = medicoRepository.getReferenceById(id);
+        var medico = medicoRepository.findById(id)
+                .orElseThrow(EntityNotFoundException::new);
+
+        long consultasPendentes = consultaRepository.countConsultasPendentesOuFuturasDoMedico(id, LocalDateTime.now());
+        if (consultasPendentes > 0) {
+            throw new ConflitoException(
+                    "Não é possível inativar o médico pois existem " + consultasPendentes
+                            + " consulta(s) futura(s) ou em atendimento vinculada(s) a ele. "
+                            + "Cancele ou reagende as consultas antes de inativar.");
+        }
+
         medico.excluir();
     }
 
