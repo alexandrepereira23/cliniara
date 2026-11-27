@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { Stethoscope, AlertCircle, Loader2 } from 'lucide-react'
+import { AlertCircle, Loader2 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { clearInvalidStoredAuthSession } from '@/lib/authSession'
 import { Button } from '@/components/ui/button'
@@ -56,11 +56,12 @@ export default function Login() {
     <div className="min-h-screen flex bg-background">
       {/* Lado esquerdo — branding */}
       <div className="hidden lg:flex flex-col justify-between w-[480px] flex-shrink-0 bg-card px-14 py-16 border-r border-border">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-lg bg-primary flex items-center justify-center">
-            <Stethoscope size={20} className="text-primary-foreground" />
-          </div>
-          <span className="text-xl font-bold text-foreground">Cliniara</span>
+        <div className="flex items-center">
+          <img
+            src="/imagens/cliniara-logo-600x200.png"
+            alt="Cliniara — Sistema Clínico"
+            className="h-12 w-auto object-contain"
+          />
         </div>
 
         <div>
@@ -92,11 +93,12 @@ export default function Login() {
       <div className="flex-1 flex items-center justify-center px-6">
         <div className="w-full max-w-sm">
           {/* Logo mobile */}
-          <div className="flex items-center gap-2.5 mb-10 lg:hidden">
-            <div className="w-9 h-9 rounded-md bg-primary flex items-center justify-center">
-              <Stethoscope size={18} className="text-primary-foreground" />
-            </div>
-            <span className="text-lg font-bold text-foreground">Cliniara</span>
+          <div className="flex items-center mb-10 lg:hidden">
+            <img
+              src="/imagens/cliniara-logo-600x200.png"
+              alt="Cliniara — Sistema Clínico"
+              className="h-10 w-auto object-contain"
+            />
           </div>
 
           <div className="mb-8">
