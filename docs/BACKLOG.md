@@ -6,7 +6,7 @@ Este arquivo centraliza melhorias futuras, correcoes tecnicas mapeadas, pendenci
 
 ## Prioridade Alta
 
-*(Todos os itens do Nivel 1 operacional — integridade clinica, alinhamento frontend/auditoria, rebranding Cliniara, ciclo completo da consulta, busca server-side e dashboards agregados — foram concluidos. Proximo marco de fechamento do Nivel 1: reescrita dedicada do `README.md` de portfolio.)*
+*(Todos os itens do Nivel 1 — integridade clinica, alinhamento frontend/auditoria, rebranding Cliniara, ciclo completo da consulta, busca server-side, dashboards agregados e vitrine `README.md` — foram concluidos. Os itens abaixo correspondem a evolucoes futuras do Nivel 2.)*
 
 ## Prioridade Media
 
@@ -52,7 +52,6 @@ Este arquivo centraliza melhorias futuras, correcoes tecnicas mapeadas, pendenci
 - Impressao/download em PDF padronizado de prescricoes e atestados, declaracao de comparecimento e rascunho/adendos de prontuario.
 - Modulos incrementais de negocio: **Financeiro basico** (particular/recibos), **Notificacoes/Lembretes**, **Solicitacao de exames** e **Lista de espera**.
 - UX Mobile aprimorada em tabelas extensas.
-- Reformulacao dedicada do `README.md` principal para demonstracao de portfolio.
 
 ## Itens Ja Resolvidos
 
@@ -82,3 +81,4 @@ Este arquivo centraliza melhorias futuras, correcoes tecnicas mapeadas, pendenci
 - Busca e filtros server-side nos 4 modulos clinicos (`GET /pacientes?q=`, `GET /medicos?q=&especialidadeId=`, `GET /consultas?q=&status=&medicoId=&dataInicio=&dataFim=` e `GET /prontuarios?q=`) com `BuscaUtil` (`ESCAPE '!'`) e debounce de 300ms no frontend.
 - Dashboards agregados no backend (`GET /dashboard/recepcao`, `GET /dashboard/medico`, `GET /dashboard/gestor`) com eliminacao da paginacao em loop e do teto de 100 consultas, alem da nova tela `GestorDashboard.tsx` (home `/` para `ROLE_GESTOR` sem dados clinicos individuais).
 - Code splitting por rota com `React.lazy` + `Suspense` em `App.tsx`, reduzindo o bundle principal do Vite de `667.87 kB` para `366.98 kB` (zero warnings de chunk > 500 kB).
+- Identidade visual oficial aplicada no frontend (logo horizontal, favicons e `site.webmanifest` em `frontend/public/`) e reescrita completa do `README.md` principal como vitrine de portfolio do **Cliniara**.
