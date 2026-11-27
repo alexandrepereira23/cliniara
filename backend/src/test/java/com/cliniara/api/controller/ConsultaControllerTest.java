@@ -21,6 +21,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.DayOfWeek;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.TemporalAdjusters;
 import java.util.List;
@@ -110,7 +111,7 @@ class ConsultaControllerTest {
                 10L, 2L, "Dra. Ana", 3L, "João", dataValida(),
                 PrioridadeConsulta.ROTINA, TipoConsulta.RETORNO, StatusConsulta.CONFIRMADA, 5L, 8L
         );
-        when(consultaService.listar(any(Pageable.class), any(Usuario.class), isNull(), eq(false)))
+        when(consultaService.listar(any(Pageable.class), any(Usuario.class), isNull(), eq(false), isNull(), isNull(), isNull(), isNull()))
                 .thenReturn(new PageImpl<>(List.of(item)));
 
         mvc.perform(get("/consultas")
@@ -125,13 +126,25 @@ class ConsultaControllerTest {
     }
 
     @Test
-    @DisplayName("ROLE_FUNCIONARIO deve filtrar consultas por status específico")
+    @DisplayName("ROLE_FUNCIONARIO deve filtrar consultas por status, busca q, medicoId e período")
     void deveFiltrarConsultasPorStatus() throws Exception {
-        when(consultaService.listar(any(Pageable.class), any(Usuario.class), eq(StatusConsulta.CANCELADA), anyBoolean()))
-                .thenReturn(new PageImpl<>(List.of()));
+        when(consultaService.listar(
+                any(Pageable.class),
+                any(Usuario.class),
+                eq(StatusConsulta.CANCELADA),
+                anyBoolean(),
+                eq("João"),
+                eq(2L),
+                eq(LocalDate.of(2026, 11, 1)),
+                eq(LocalDate.of(2026, 11, 30))
+        )).thenReturn(new PageImpl<>(List.of()));
 
         mvc.perform(get("/consultas")
                         .param("status", "CANCELADA")
+                        .param("q", "João")
+                        .param("medicoId", "2")
+                        .param("dataInicio", "2026-11-01")
+                        .param("dataFim", "2026-11-30")
                         .with(user(usuarioFuncionario())))
                 .andExpect(status().isOk());
     }
@@ -147,7 +160,7 @@ class ConsultaControllerTest {
     @Test
     @DisplayName("ROLE_MEDICO deve listar apenas suas consultas")
     void medicoDeveListarApenasPropriasConsultas() throws Exception {
-        when(consultaService.listar(any(Pageable.class), any(Usuario.class), isNull(), eq(false)))
+        when(consultaService.listar(any(Pageable.class), any(Usuario.class), isNull(), eq(false), isNull(), isNull(), isNull(), isNull()))
                 .thenReturn(new PageImpl<>(List.of()));
 
         mvc.perform(get("/consultas")

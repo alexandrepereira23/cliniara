@@ -39,11 +39,13 @@ public class MedicoController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ROLE_FUNCIONARIO', 'ROLE_MEDICO', 'ROLE_AUDITOR', 'ROLE_GESTOR')")
-    @Operation(summary = "Listar médicos", description = "Lista médicos ativos com paginação")
+    @Operation(summary = "Listar médicos", description = "Lista médicos ativos com paginação, busca opcional e filtro por especialidade")
     public ResponseEntity<Page<DadosListagemMedico>> listar(
             @ParameterObject @PageableDefault(size = 10) Pageable paginacao,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Long especialidadeId,
             @AuthenticationPrincipal Usuario usuario) {
-        var page = medicoService.listar(paginacao, usuario);
+        var page = medicoService.listar(paginacao, usuario, q, especialidadeId);
         return ResponseEntity.ok(page);
     }
 

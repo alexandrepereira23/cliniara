@@ -92,13 +92,26 @@ public class ProntuarioService {
 
     @Transactional(readOnly = true)
     public Page<DadosListagemProntuario> listar(Pageable pageable, Usuario usuarioLogado) {
+        return listar(pageable, usuarioLogado, null);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<DadosListagemProntuario> listar(Pageable pageable, Usuario usuarioLogado, String q) {
+        String termo = BuscaUtil.paraLikeContendo(q);
         if (usuarioLogado.getAuthorities().contains(Perfil.ROLE_MEDICO)) {
             var medico = medicoRepository.findByUsuario(usuarioLogado)
                     .orElseThrow(() -> new ResponseStatusException(HttpStatus.FORBIDDEN, "Usuário não possui cadastro de médico"));
-            return prontuarioRepository.findAllByAtivoTrueAndMedicoId(medico.getId(), pageable)
+            if (termo == null) {
+                return prontuarioRepository.findAllByAtivoTrueAndMedicoId(medico.getId(), pageable)
+                        .map(DadosListagemProntuario::new);
+            }
+            return prontuarioRepository.findAllAtivosByMedicoIdComBusca(medico.getId(), termo, pageable)
                     .map(DadosListagemProntuario::new);
         }
-        return prontuarioRepository.findAllByAtivoTrue(pageable).map(DadosListagemProntuario::new);
+        if (termo == null) {
+            return prontuarioRepository.findAllByAtivoTrue(pageable).map(DadosListagemProntuario::new);
+        }
+        return prontuarioRepository.findAllAtivosComBusca(termo, pageable).map(DadosListagemProntuario::new);
     }
 
     @Transactional(readOnly = true)

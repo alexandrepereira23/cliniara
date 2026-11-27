@@ -26,6 +26,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -103,10 +105,23 @@ class MedicoControllerTest {
     @Test
     @DisplayName("ROLE_FUNCIONARIO deve listar médicos e receber 200")
     void deveListarMedicos() throws Exception {
-        when(medicoService.listar(any(Pageable.class), any(Usuario.class)))
+        when(medicoService.listar(any(Pageable.class), any(Usuario.class), isNull(), isNull()))
                 .thenReturn(new PageImpl<>(List.of()));
 
         mvc.perform(get("/medicos")
+                        .with(user(usuarioFuncionario())))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("ROLE_FUNCIONARIO deve filtrar médicos por busca q e especialidadeId")
+    void deveListarMedicosComFiltros() throws Exception {
+        when(medicoService.listar(any(Pageable.class), any(Usuario.class), eq("Ana"), eq(2L)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        mvc.perform(get("/medicos")
+                        .param("q", "Ana")
+                        .param("especialidadeId", "2")
                         .with(user(usuarioFuncionario())))
                 .andExpect(status().isOk());
     }

@@ -25,6 +25,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
@@ -91,7 +93,7 @@ class PacientesControllerTest {
     @Test
     @DisplayName("deve listar pacientes com ROLE_FUNCIONARIO e receber 200")
     void deveListarPacientesComFuncionario() throws Exception {
-        when(pacienteService.listarAtivos(any(Pageable.class), any(Usuario.class))).thenReturn(new PageImpl<>(List.of()));
+        when(pacienteService.listarAtivos(any(Pageable.class), any(Usuario.class), isNull())).thenReturn(new PageImpl<>(List.of()));
 
         mvc.perform(get("/pacientes")
                         .with(user(usuarioFuncionario())))
@@ -99,9 +101,20 @@ class PacientesControllerTest {
     }
 
     @Test
+    @DisplayName("deve repassar termo de busca q em GET /pacientes")
+    void deveListarPacientesComBusca() throws Exception {
+        when(pacienteService.listarAtivos(any(Pageable.class), any(Usuario.class), eq("Maria"))).thenReturn(new PageImpl<>(List.of()));
+
+        mvc.perform(get("/pacientes")
+                        .param("q", "Maria")
+                        .with(user(usuarioFuncionario())))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     @DisplayName("ROLE_MEDICO deve listar pacientes vinculados e receber 200")
     void deveListarPacientesVinculadosComMedico() throws Exception {
-        when(pacienteService.listarAtivos(any(Pageable.class), any(Usuario.class))).thenReturn(new PageImpl<>(List.of()));
+        when(pacienteService.listarAtivos(any(Pageable.class), any(Usuario.class), isNull())).thenReturn(new PageImpl<>(List.of()));
 
         mvc.perform(get("/pacientes")
                         .with(user(usuarioMedico())))

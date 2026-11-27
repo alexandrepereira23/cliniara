@@ -69,10 +69,27 @@ public class MedicoService {
 
     @Transactional(readOnly = true)
     public Page<DadosListagemMedico> listar(Pageable paginacao, Usuario usuario) {
-        if (usuario.getAuthorities().contains(Perfil.ROLE_MEDICO)) {
-            return medicoRepository.findAllByAtivoTrueAndUsuarioId(paginacao, usuario.getId())
+        return listar(paginacao, usuario, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<DadosListagemMedico> listar(Pageable paginacao, Usuario usuario, String q, Long especialidadeId) {
+        String termo = BuscaUtil.paraLikeContendo(q);
+        boolean isMedico = usuario.getAuthorities().contains(Perfil.ROLE_MEDICO);
+
+        if (termo == null && especialidadeId == null) {
+            if (isMedico) {
+                return medicoRepository.findAllByAtivoTrueAndUsuarioId(paginacao, usuario.getId())
+                        .map(DadosListagemMedico::new);
+            }
+            return medicoRepository.findAllByAtivoTrue(paginacao).map(DadosListagemMedico::new);
+        }
+
+        if (isMedico) {
+            return medicoRepository.findAllAtivosByUsuarioIdComFiltros(usuario.getId(), termo, especialidadeId, paginacao)
                     .map(DadosListagemMedico::new);
         }
-        return medicoRepository.findAllByAtivoTrue(paginacao).map(DadosListagemMedico::new);
+        return medicoRepository.findAllAtivosComFiltros(termo, especialidadeId, paginacao)
+                .map(DadosListagemMedico::new);
     }
 }

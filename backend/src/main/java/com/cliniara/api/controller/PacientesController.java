@@ -38,12 +38,13 @@ public class PacientesController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ROLE_FUNCIONARIO', 'ROLE_MEDICO', 'ROLE_AUDITOR', 'ROLE_GESTOR')")
-    @Operation(summary = "Listar pacientes", description = "Lista pacientes ativos com paginação. Médico vê apenas pacientes vinculados às suas consultas")
+    @Operation(summary = "Listar pacientes", description = "Lista pacientes ativos com paginação e busca opcional por nome, CPF ou e-mail. Médico vê apenas pacientes vinculados às suas consultas")
     public ResponseEntity<Page<DadosListagemPaciente>> listar(
             @ParameterObject @PageableDefault(size = 10) Pageable paginacao,
+            @RequestParam(required = false) String q,
             @AuthenticationPrincipal Usuario usuario) {
-        var page = pacienteService.listarAtivos(paginacao, usuario);
-        return  ResponseEntity.ok(page);
+        var page = pacienteService.listarAtivos(paginacao, usuario, q);
+        return ResponseEntity.ok(page);
     }
 
     @PutMapping

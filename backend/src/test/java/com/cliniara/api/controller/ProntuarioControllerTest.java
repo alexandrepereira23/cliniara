@@ -99,10 +99,22 @@ class ProntuarioControllerTest {
     @Test
     @DisplayName("ROLE_MEDICO deve listar prontuários e receber 200")
     void deveListarProntuariosComMedico() throws Exception {
-        when(prontuarioService.listar(any(Pageable.class), any(Usuario.class)))
+        when(prontuarioService.listar(any(Pageable.class), any(Usuario.class), any()))
                 .thenReturn(new PageImpl<>(List.of()));
 
         mvc.perform(get("/prontuarios")
+                        .with(user(usuarioMedico())))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    @DisplayName("ROLE_MEDICO deve filtrar prontuários via busca textual q")
+    void deveListarProntuariosComBusca() throws Exception {
+        when(prontuarioService.listar(any(Pageable.class), any(Usuario.class), org.mockito.ArgumentMatchers.eq("Sinusite")))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        mvc.perform(get("/prontuarios")
+                        .param("q", "Sinusite")
                         .with(user(usuarioMedico())))
                 .andExpect(status().isOk());
     }
@@ -118,7 +130,7 @@ class ProntuarioControllerTest {
     @Test
     @DisplayName("ROLE_AUDITOR deve listar prontuários e receber 200")
     void deveListarProntuariosComAuditor() throws Exception {
-        when(prontuarioService.listar(any(Pageable.class), any(Usuario.class)))
+        when(prontuarioService.listar(any(Pageable.class), any(Usuario.class), any()))
                 .thenReturn(new PageImpl<>(List.of()));
 
         mvc.perform(get("/prontuarios")
@@ -129,7 +141,7 @@ class ProntuarioControllerTest {
     @Test
     @DisplayName("ROLE_GESTOR deve listar prontuários e receber 200")
     void deveListarProntuariosComGestor() throws Exception {
-        when(prontuarioService.listar(any(Pageable.class), any(Usuario.class)))
+        when(prontuarioService.listar(any(Pageable.class), any(Usuario.class), any()))
                 .thenReturn(new PageImpl<>(List.of()));
 
         mvc.perform(get("/prontuarios")

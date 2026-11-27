@@ -10,11 +10,13 @@ import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
@@ -41,14 +43,18 @@ public class ConsultaController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ROLE_FUNCIONARIO', 'ROLE_MEDICO', 'ROLE_AUDITOR', 'ROLE_GESTOR')")
-    @Operation(summary = "Listar consultas", description = "Lista consultas paginadas com filtro opcional por status ou inclusão de encerradas")
+    @Operation(summary = "Listar consultas", description = "Lista consultas paginadas com filtros opcionais por busca textual, status, médico e período")
     public ResponseEntity<Page<DadosListagemConsulta>> listar(
             @ParameterObject @PageableDefault(size = 10, sort = {"dataHora"}) Pageable paginacao,
             @RequestParam(required = false) StatusConsulta status,
             @RequestParam(defaultValue = "false") boolean incluirEncerradas,
+            @RequestParam(required = false) String q,
+            @RequestParam(required = false) Long medicoId,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicio,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFim,
             @AuthenticationPrincipal Usuario usuario
     ) {
-        var page = consultaService.listar(paginacao, usuario, status, incluirEncerradas);
+        var page = consultaService.listar(paginacao, usuario, status, incluirEncerradas, q, medicoId, dataInicio, dataFim);
         return ResponseEntity.ok(page);
     }
 

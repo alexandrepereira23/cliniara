@@ -42,12 +42,13 @@ public class ProntuarioController {
 
     @GetMapping
     @PreAuthorize("hasAnyRole('ROLE_MEDICO', 'ROLE_AUDITOR', 'ROLE_GESTOR')")
-    @Operation(summary = "Listar prontuários", description = "Lista prontuários ativos. Médico vê apenas os seus; auditor/gestor têm leitura ampla")
+    @Operation(summary = "Listar prontuários", description = "Lista prontuários ativos com busca opcional por paciente, diagnóstico ou CID-10. Médico vê apenas os seus; auditor/gestor têm leitura ampla")
     public ResponseEntity<Page<DadosListagemProntuario>> listar(
             @ParameterObject @PageableDefault(size = 10) Pageable pageable,
+            @RequestParam(required = false) String q,
             @AuthenticationPrincipal Usuario usuario
     ) {
-        return ResponseEntity.ok(prontuarioService.listar(pageable, usuario));
+        return ResponseEntity.ok(prontuarioService.listar(pageable, usuario, q));
     }
 
     @GetMapping("/{id}")

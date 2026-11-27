@@ -4,6 +4,7 @@ import com.cliniara.api.domain.consulta.*;
 import com.cliniara.api.domain.medico.MedicoRepository;
 import com.cliniara.api.domain.usuario.Perfil;
 import com.cliniara.api.domain.usuario.Usuario;
+import com.cliniara.api.exception.ValidacaoException;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -11,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
 
@@ -81,8 +84,37 @@ public class ConsultaService {
             StatusConsulta status,
             boolean incluirEncerradas
     ) {
+        return listar(paginacao, usuario, status, incluirEncerradas, null, null, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public Page<DadosListagemConsulta> listar(
+            Pageable paginacao,
+            Usuario usuario,
+            StatusConsulta status,
+            boolean incluirEncerradas,
+            String q,
+            Long medicoId,
+            LocalDate dataInicio,
+            LocalDate dataFim
+    ) {
+        if (dataInicio != null && dataFim != null && dataInicio.isAfter(dataFim)) {
+            throw new ValidacaoException("A data inicial não pode ser posterior à data final.");
+        }
+
+        String termo = BuscaUtil.paraLikeContendo(q);
+        LocalDateTime inicio = dataInicio != null ? dataInicio.atStartOfDay() : null;
+        LocalDateTime fimExclusivo = dataFim != null ? dataFim.plusDays(1).atStartOfDay() : null;
         boolean isMedico = usuario.getAuthorities().contains(Perfil.ROLE_MEDICO);
-        if (status == null && !incluirEncerradas) {
+
+        boolean semFiltros = status == null
+                && !incluirEncerradas
+                && termo == null
+                && (isMedico || medicoId == null)
+                && inicio == null
+                && fimExclusivo == null;
+
+        if (semFiltros) {
             if (isMedico) {
                 return consultaRepository.findAllByAtivoTrueAndMedicoUsuarioId(paginacao, usuario.getId())
                         .map(DadosListagemConsulta::new);
@@ -92,11 +124,12 @@ public class ConsultaService {
 
         if (isMedico) {
             return consultaRepository
-                    .findAllByMedicoUsuarioIdWithFilters(usuario.getId(), status, incluirEncerradas, paginacao)
+                    .findAllByMedicoUsuarioIdWithFilters(
+                            usuario.getId(), status, incluirEncerradas, termo, inicio, fimExclusivo, paginacao)
                     .map(DadosListagemConsulta::new);
         }
         return consultaRepository
-                .findAllWithFilters(status, incluirEncerradas, paginacao)
+                .findAllWithFilters(status, incluirEncerradas, termo, medicoId, inicio, fimExclusivo, paginacao)
                 .map(DadosListagemConsulta::new);
     }
 
