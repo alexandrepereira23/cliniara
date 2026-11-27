@@ -42,7 +42,7 @@ Perfis recomendados para ambiente profissional:
 | `GET` | `/medicos` | Listar médicos ativos (paginado) | FUNCIONARIO, MEDICO, AUDITOR/GESTOR |
 | `GET` | `/medicos/{id}` | Detalhar médico | FUNCIONARIO, MEDICO, AUDITOR/GESTOR |
 | `PUT` | `/medicos` | Atualizar médico (ID no body) | FUNCIONARIO |
-| `DELETE` | `/medicos/{id}` | Inativar médico (exclusão lógica) | FUNCIONARIO |
+| `DELETE` | `/medicos/{id}` | Inativar médico (exclusão lógica; retorna `409 Conflict` se houver consultas futuras ou em atendimento vinculadas) | FUNCIONARIO |
 | `POST` | `/medicos/{id}/disponibilidade` | Cadastrar horários de disponibilidade | FUNCIONARIO |
 | `GET` | `/medicos/{id}/disponibilidade` | Listar horários de disponibilidade | FUNCIONARIO, MEDICO, AUDITOR/GESTOR |
 | `DELETE` | `/medicos/{id}/disponibilidade/{dispId}` | Remover horário de disponibilidade | FUNCIONARIO |
@@ -65,11 +65,18 @@ Perfis recomendados para ambiente profissional:
 
 | Método | Endpoint | Descrição | Roles |
 |--------|----------|-----------|-------|
-| `POST` | `/consultas` | Agendar consulta | FUNCIONARIO |
-| `GET` | `/consultas` | Listar consultas (paginado) | FUNCIONARIO, AUDITOR/GESTOR, MEDICO* |
-| `DELETE` | `/consultas` | Cancelar consulta | FUNCIONARIO |
+| `POST` | `/consultas` | Agendar consulta ou retorno (`consultaOrigemId` exige consulta `CONCLUIDA`) | FUNCIONARIO |
+| `GET` | `/consultas` | Listar consultas paginadas (filtros opcionais `?status=` e `?incluirEncerradas=true`) | FUNCIONARIO, AUDITOR/GESTOR, MEDICO* |
+| `GET` | `/consultas/{id}/historico` | Listar trilha cronológica de transições de status (quem, quando e motivo) | FUNCIONARIO, AUDITOR/GESTOR, MEDICO* |
+| `PATCH` | `/consultas/{id}/confirmar` | Confirmar consulta (`AGENDADA → CONFIRMADA`) | FUNCIONARIO |
+| `PATCH` | `/consultas/{id}/check-in` | Registrar chegada (`AGENDADA \| CONFIRMADA → CHECK_IN`) | FUNCIONARIO |
+| `PATCH` | `/consultas/{id}/iniciar` | Iniciar atendimento (`CHECK_IN → EM_ATENDIMENTO`) | MEDICO (da consulta) |
+| `PATCH` | `/consultas/{id}/concluir` | Concluir atendimento (`EM_ATENDIMENTO → CONCLUIDA`) | MEDICO (da consulta) |
+| `PATCH` | `/consultas/{id}/ausencia` | Registrar falta/no-show (`AGENDADA \| CONFIRMADA → AUSENTE`, data `<= hoje`) | FUNCIONARIO |
+| `POST` | `/consultas/{id}/reagendar` | Marcar atual como `REAGENDADA` e criar nova consulta vinculada (`consultaReagendadaDeId`) | FUNCIONARIO |
+| `DELETE` | `/consultas` | Cancelar consulta (`AGENDADA \| CONFIRMADA \| CHECK_IN → CANCELADA`; 24h apenas para `PACIENTE`) | FUNCIONARIO |
 
-> *MEDICO vê apenas suas próprias consultas.
+> *MEDICO vê apenas suas próprias consultas e históricos.
 
 ### Campos do agendamento (`POST /consultas`)
 ```json
@@ -79,8 +86,18 @@ Perfis recomendados para ambiente profissional:
 
   "data": "2025-01-15T10:00",
   "prioridade": "ROTINA",     // ROTINA (30 min) | PRIORITARIO (10 min) | URGENCIA (sem restrição). Padrão: ROTINA
-  "consultaOrigemId": null,   // ID da consulta original, para agendar retorno
+  "consultaOrigemId": null,   // ID da consulta original CONCLUIDA, para agendar retorno
   "convenioId": null          // opcional, quando a consulta usa convênio/plano
+}
+```
+
+### Campos do reagendamento (`POST /consultas/{id}/reagendar`)
+```json
+{
+  "novaData": "2026-12-10T10:00:00",
+  "idMedico": 2,              // opcional — mantém o médico atual se omitido (obrigatório manter no retorno)
+  "solicitadoPor": "CLINICA", // PACIENTE (exige 24h) | CLINICA (sem trava de 24h)
+  "motivo": "Remanejamento de agenda médica"
 }
 ```
 
@@ -89,7 +106,7 @@ Perfis recomendados para ambiente profissional:
 {
   "idConsulta": 1,
   "motivo": "PACIENTE_DESISTIU",
-  "canceladoPor": "PACIENTE"  // PACIENTE | CLINICA (opcional)
+  "canceladoPor": "PACIENTE"  // PACIENTE (exige 24h) | CLINICA (sem trava de 24h; assumido em MEDICO_CANCELOU)
 }
 ```
 

@@ -6,22 +6,7 @@ Este arquivo centraliza melhorias futuras, correcoes tecnicas mapeadas, pendenci
 
 ## Prioridade Alta
 
-### Ciclo Completo da Consulta
-
-Implementar e validar estados adicionais da consulta com trilha de quem alterou e quando:
-
-- Agendada.
-- Confirmada.
-- Check-in.
-- Em atendimento.
-- Concluida.
-- Cancelada.
-- Paciente ausente.
-- Reagendada (com vinculo historico entre agendamentos).
-
-### Consultas Futuras de Medico Inativado
-
-O bloqueio imediato de login (`403`) e de JWT ativo (`401`) para `ROLE_MEDICO` inativado ja esta implementado. Permanece pendente definir o tratamento operacional para consultas futuras ja agendadas quando um medico e inativado (cancelamento em lote, aviso ou bloqueio da inativacao).
+*(Todos os itens iniciais de Prioridade Alta foram concluídos e movidos para "Itens Ja Resolvidos". Próxima prioridade sugerida: Busca Server-Side, Filtros e Indicadores Reais de Dashboard.)*
 
 ## Prioridade Media
 
@@ -94,3 +79,6 @@ O bloqueio imediato de login (`403`) e de JWT ativo (`401`) para `ROLE_MEDICO` i
 - Alinhamento completo Backend -> Frontend: detalhamento (`GET /prontuarios/{id}`), edicao em 24h (`PUT /prontuarios`) e inativacao administrativa (`DELETE /prontuarios/{id}`) em `MedicalRecords.tsx`; agendamento de retorno (`consultaOrigemId` + campos de apoio em `DadosListagemConsulta`) e `canceladoPor` em `Appointments.tsx`; consulta LGPD por recurso clinico (`GET /auditoria/{recursoTipo}/{recursoId}`) em `Audit.tsx`.
 - Navegacao somente-leitura alinhada para `ROLE_AUDITOR` e `ROLE_GESTOR` (mantendo `/audit` como home inicial e liberando consulta de modulos operacionais/clinicos) + remocao dos 4 arquivos legados de template (`mockData.ts`, `Home.tsx`, `ManusDialog.tsx`, `Map.tsx`).
 - Expansao da cobertura automatizada: +9 testes Vitest (`MedicalRecords.test.tsx`, `Appointments.test.tsx`, `Audit.test.tsx`) e +2 cenarios E2E Playwright (prontuario/edicao/prescricao por `ROLE_MEDICO` e auditoria/inativacao por `ROLE_AUDITOR`).
+- Rebranding profundo para **Cliniara** (`com.cliniara.api`, UI, Docker/Caddy/CI com fallbacks de zero downtime e documentacao interna sincronizada).
+- Ciclo completo da consulta (`V26`): 8 status (`AGENDADA`, `CONFIRMADA`, `CHECK_IN`, `EM_ATENDIMENTO`, `CONCLUIDA`, `CANCELADA`, `AUSENTE`, `REAGENDADA`), trilha auditavel em `consulta_historico_status`, reagendamento com vinculo historico (`consultaReagendadaDeId`), regra de 24h restrita ao `PACIENTE`, exigencia de `EM_ATENDIMENTO`/`CONCLUIDA` para prontuario e `CONCLUIDA` para retorno, suporte a `PATCH` no CORS e acoes por perfil no frontend (`Appointments`, `MedicalRecords`, dashboards).
+- Protecao na inativacao de medico (`DELETE /medicos/{id}`): bloqueio `409 Conflict` informando a contagem de consultas futuras pendentes ou em atendimento vinculadas ao medico, com exibicao da mensagem na tela `Doctors.tsx` e validacao E2E.

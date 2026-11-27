@@ -29,21 +29,32 @@ Este documento centraliza todas as regras de negócio implementadas na API, serv
 | # | Regra | Erro |
 |---|-------|------|
 | 1 | Informar `consultaOrigemId` no agendamento para criar um retorno | 400 — Consulta de origem não encontrada |
-| 2 | Consulta de origem deve existir e estar ativa | 400 — Consulta de origem cancelada |
+| 2 | Consulta de origem deve existir e estar com status **`CONCLUIDA`** | 400 — Retorno exige consulta concluída |
 | 3 | Retorno deve pertencer ao mesmo paciente da consulta original | 400 — Mesmo paciente obrigatório |
 | 4 | Data/hora do retorno deve ser estritamente posterior à consulta original e ocorrer em até 30 dias | 400 — Data anterior/igual ou prazo de 30 dias excedido |
-| 5 | Cada consulta pode ter no máximo um retorno **ativo**; se um retorno anterior foi cancelado, é permitido agendar novo retorno | 400 — Já existe retorno ativo |
+| 5 | Cada consulta pode ter no máximo um retorno **ativo**; se um retorno anterior foi cancelado, ausente ou reagendado, é permitido agendar novo retorno | 400 — Já existe retorno ativo |
 | 6 | Retorno deve ser agendado com o **mesmo médico** da consulta original; se `idMedico` for omitido, o sistema assume automaticamente o médico original (desde que ativo) | 400 — Médico diferente ou médico original inativo |
 | 7 | Retorno não consome a cota diária do paciente (ignora regra de uma consulta por dia) | — |
 | 8 | Campo `tipo` na resposta indica `NORMAL` ou `RETORNO`; `consultaOrigemId` indica o vínculo | — |
 
-### Cancelamento (`AgendaDeConsultas.cancelar`)
+### Ciclo de Status, Ausência, Reagendamento e Cancelamento
 
 | # | Regra | Erro |
 |---|-------|------|
-| 1 | Consulta deve existir | 400 — ID da consulta não existe |
-| 2 | Cancelamento com mínimo 24h de antecedência | 400 — Antecedência mínima não respeitada |
-| 3 | Campo `canceladoPor` opcional: `PACIENTE` ou `CLINICA` | — |
+| 1 | Toda consulta inicia em `AGENDADA` e registra trilha em `consulta_historico_status` (quem alterou, quando, status anterior/novo e motivo) | — |
+| 2 | Fluxo principal: `AGENDADA → CONFIRMADA` (Recepção), `AGENDADA \| CONFIRMADA → CHECK_IN` (Recepção), `CHECK_IN → EM_ATENDIMENTO` (Médico responsável), `EM_ATENDIMENTO → CONCLUIDA` (Médico responsável) | 400 — Transição inválida / 403 — Outro médico |
+| 3 | `CONCLUIDA` mantém `ativo = true` para preservar o vínculo assistencial médico-paciente; `CANCELADA`, `AUSENTE` e `REAGENDADA` definem `ativo = false` liberando horário e cota diária | — |
+| 4 | Cancelamento (`DELETE /consultas`) permitido apenas em `AGENDADA`, `CONFIRMADA` ou `CHECK_IN`; antecedência mínima de 24h é exigida **apenas quando solicitado pelo `PACIENTE`** (`MEDICO_CANCELOU` e `CLINICA` não sofrem trava de 24h; `MEDICO_CANCELOU` + `PACIENTE` é rejeitado) | 400 — Status inválido / Antecedência mínima de 24h |
+| 5 | Ausência (`PATCH /consultas/{id}/ausencia`) permitida apenas em `AGENDADA` ou `CONFIRMADA` quando a data da consulta é hoje ou anterior (`<= hoje`) | 400 — Status inválido ou data futura |
+| 6 | Reagendamento (`POST /consultas/{id}/reagendar`) marca a original como `REAGENDADA`, cria nova consulta `AGENDADA` vinculada por `consultaReagendadaDeId` e revalida disponibilidade, convênio e retorno; exige 24h apenas quando `solicitadoPor = PACIENTE` | 400 — Regra de negócio ou antecedência de 24h |
+
+---
+
+## Médicos
+
+| # | Regra | Erro |
+|---|-------|------|
+| 1 | A inativação lógica (`DELETE /medicos/{id}`) é bloqueada se o médico possuir consultas futuras pendentes (`AGENDADA`, `CONFIRMADA` ou `CHECK_IN` com `dataHora >= agora`) ou consulta `EM_ATENDIMENTO` | 409 — Conflito com contagem de consultas pendentes |
 
 ---
 
@@ -75,7 +86,7 @@ Este documento centraliza todas as regras de negócio implementadas na API, serv
 
 | # | Regra | Erro |
 |---|-------|------|
-| 1 | Consulta referenciada deve existir e estar ativa | 404 / 400 |
+| 1 | Consulta referenciada deve existir e estar no status `EM_ATENDIMENTO` ou `CONCLUIDA` | 404 / 400 |
 | 2 | Cada consulta pode ter no máximo um prontuário | 409 — Prontuário já existe |
 | 3 | Apenas o médico que realizou a consulta pode criar o prontuário | 403 |
 | 4 | Apenas o médico que criou pode editar o prontuário | 403 |
@@ -208,6 +219,13 @@ Modelo profissional recomendado:
 | `POST /consultas` | — | ✅ | — | — |
 | `DELETE /consultas` | — | ✅ | — | — |
 | `GET /consultas` | — | ✅ | ✅ (apenas as suas) | ✅ |
+| `GET /consultas/{id}/historico` | — | ✅ | ✅ (apenas as suas) | ✅ |
+| `PATCH /consultas/{id}/confirmar` | — | ✅ | — | — |
+| `PATCH /consultas/{id}/check-in` | — | ✅ | — | — |
+| `PATCH /consultas/{id}/ausencia` | — | ✅ | — | — |
+| `POST /consultas/{id}/reagendar` | — | ✅ | — | — |
+| `PATCH /consultas/{id}/iniciar` | — | — | ✅ (da sua consulta) | — |
+| `PATCH /consultas/{id}/concluir` | — | — | ✅ (da sua consulta) | — |
 | `POST /medicos/{id}/disponibilidade` | — | ✅ | — | — |
 | `GET /medicos/{id}/disponibilidade` | — | ✅ | ✅ | ✅ |
 | `DELETE /medicos/{id}/disponibilidade/{dispId}` | — | ✅ | — | — |

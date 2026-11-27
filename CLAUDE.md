@@ -17,7 +17,7 @@ cd backend && ./mvnw spring-boot:run
 # Build completo do backend (usar após mudanças em @Value ou configuração)
 cd backend && ./mvnw clean package
 
-# Rodar todos os testes do backend (231 testes)
+# Rodar todos os testes do backend (262 testes)
 cd backend && ./mvnw test
 
 # Rodar uma classe de teste específica no backend
@@ -98,14 +98,16 @@ Ao iniciar, `AdminInitializer` (implementa `ApplicationRunner`) verifica se exis
 
 - `ddl-auto=validate` — Hibernate valida o schema mas não o altera; toda mudança estrutural exige migration Flyway
 - Migrations em `backend/src/main/resources/db/migration/` com prefixo `V{n}__descricao.sql`
-- Última migration aplicada: `V25` — próxima será `V26`
-- Exclusão lógica via campo `ativo` em médicos, pacientes, consultas, prontuários, especialidades, convênios, vínculos de convênio e disponibilidades
+- Última migration aplicada: `V26` — próxima será `V27`
+- Exclusão lógica via campo `ativo` em médicos, pacientes, consultas, prontuários, especialidades, convênios, vínculos de convênio e disponibilidades; inativação de médico (`DELETE /medicos/{id}`) bloqueia com `409 Conflict` se houver consultas futuras ou em atendimento vinculadas
 
 ### Regras de negócio de consultas (AgendaDeConsultas)
 
 - Clínica funciona Seg–Sáb, 07h–19h
-- Antecedência mínima de agendamento conforme prioridade: `ROTINA` (30 min, padrão), `PRIORITARIO` (10 min), `URGENCIA` (sem restrição); cancelamento exige mínimo de 24h
-- Paciente não pode ter duas consultas normais no mesmo dia (retorno via `consultaOrigemId` ignora a cota diária; exige mesmo paciente, mesmo médico — auto-atribuído se omitido —, data estritamente posterior até 30 dias e no máximo 1 retorno ativo por consulta)
+- Ciclo de status (`StatusConsulta`) com trilha auditável em `consulta_historico_status`: `AGENDADA → CONFIRMADA → CHECK_IN → EM_ATENDIMENTO → CONCLUIDA`, além de `CANCELADA`, `AUSENTE` (no dia/após horário) e `REAGENDADA` (cria nova consulta vinculada por `consultaReagendadaDeId`); `CONCLUIDA` mantém `ativo = true` para preservar o vínculo médico↔paciente
+- Antecedência mínima de agendamento conforme prioridade: `ROTINA` (30 min, padrão), `PRIORITARIO` (10 min), `URGENCIA` (sem restrição); cancelamento e reagendamento exigem mínimo de 24h apenas quando solicitados pelo `PACIENTE` (solicitações da `CLINICA`/`MEDICO_CANCELOU` não têm trava de 24h)
+- Paciente não pode ter duas consultas normais no mesmo dia (retorno via `consultaOrigemId` ignora a cota diária; exige consulta original `CONCLUIDA`, mesmo paciente, mesmo médico — auto-atribuído se omitido —, data estritamente posterior até 30 dias e no máximo 1 retorno ativo por consulta)
+- Prontuários (`POST /prontuarios`) exigem consulta em `EM_ATENDIMENTO` ou `CONCLUIDA`
 - Médico pode ser omitido (em consultas normais) — sistema escolhe aleatoriamente um médico ativo com disponibilidade real cadastrada e livre no horário; disponibilidade exige `horaInicio < horaFim` e sem sobreposição ativa no mesmo `diaSemana`
 - Quando `convenioId` é informado, valida existência/atividade do convênio, aceite pelo médico e, para `TipoConvenio.PLANO`, vínculo ativo e validade da carteirinha do paciente (`TipoConvenio.PARTICULAR` não exige carteirinha)
 
@@ -121,7 +123,7 @@ Monorepo — frontend SPA em `frontend/`.
 - **wouter** — roteamento client-side leve
 - Axios (client HTTP com interceptor JWT em `src/api/axios.ts` e base default `/api`)
 - React Hook Form + Zod v4, framer-motion, recharts, sonner, Lucide React
-- Vitest + Testing Library (39 testes automatizados)
+- Vitest + Testing Library (43 testes automatizados)
 
 ### Comandos
 
@@ -134,7 +136,7 @@ npm install
 # Dev server (http://localhost:5173 — proxy /api -> http://localhost:8080)
 npm run dev
 
-# Executar testes automatizados (39 testes)
+# Executar testes automatizados (43 testes)
 npm test
 
 # Testes E2E com Playwright (9 testes; sobe backend e frontend sozinho, ver docs/TESTES.md)
@@ -160,7 +162,7 @@ frontend/src/
 │                      # auditoria.ts, ia.ts (+ testes unitários axios.test.ts, cep.test.ts)
 ├── contexts/          # AuthContext.tsx (+ AuthContext.test.tsx), ThemeContext.tsx
 ├── hooks/             # useAuth.ts, useMobile.tsx, useComposition.ts, usePersistFn.ts
-├── lib/               # authSession.ts, rbac.ts, utils.ts
+├── lib/               # authSession.ts, consultaStatus.ts, rbac.ts, utils.ts
 ├── components/
 │   ├── dashboard/     # FuncionarioDashboard.tsx (+ test), MedicoDashboard.tsx
 │   ├── ui/            # shadcn/ui + Pagination, Spinner

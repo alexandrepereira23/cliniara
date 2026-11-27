@@ -6,11 +6,11 @@ Este documento registra a estrategia de testes, comandos de validacao e pendenci
 
 Validado nesta revisao documental:
 
-- Backend: **231 testes passando** com `./mvnw test` em `backend/`.
-- Frontend: **39 testes passando** com `npm test` em `frontend/`.
+- Backend: **262 testes passando** com `./mvnw test` em `backend/`.
+- Frontend: **43 testes passando** com `npm test` em `frontend/`.
 - Frontend audit: **0 vulnerabilidades** reportadas em `npm audit` (corrigido com seguranca via `npm audit fix`).
 - E2E (Playwright + Chromium): **9 testes passando** com `npm run test:e2e` em `frontend/` (validado localmente no modo H2; o modo MySQL + Flyway roda no CI).
-- CI/CD (`.github/workflows/deploy.yml`): o job `test` executa `./mvnw --batch-mode test`, `npm test`, `npm run check` e `npm run build`; o job `e2e` (MySQL 8.0 real + Flyway `V1`–`V25`) executa `npm run test:e2e`. O `deploy` na VPS depende dos dois (`needs: [test, e2e]`).
+- CI/CD (`.github/workflows/deploy.yml`): o job `test` executa `./mvnw --batch-mode test`, `npm test`, `npm run check` e `npm run build`; o job `e2e` (MySQL 8.0 real + Flyway `V1`–`V26`) executa `npm run test:e2e`. O `deploy` na VPS depende dos dois (`needs: [test, e2e]`).
 
 ## Comandos
 
@@ -95,8 +95,9 @@ Usam JUnit 5 e Mockito para validar regras de negocio sem subir o contexto web c
 | Classe | Testes | Cobertura principal |
 |---|---:|---|
 | `ApiApplicationTests` | 1 | Inicializacao do contexto Spring Boot com H2 |
-| `AgendaDeConsultasTest` | 27 | Agendamento, cancelamento, prioridade, retorno (mesmo paciente/medico, data/30d, reemissao), disponibilidade e elegibilidade de convenio (`PLANO`/`PARTICULAR`) |
-| `ProntuarioServiceTest` | 7 | Criacao, ownership, janela de edicao e erros de prontuario |
+| `AgendaDeConsultasTest` | 40 | Agendamento, ciclo completo de 8 status, historico, ausencia, reagendamento, cancelamento (24h apenas paciente), retorno (`CONCLUIDA`), disponibilidade e elegibilidade de convenio (`PLANO`/`PARTICULAR`) |
+| `MedicoServiceTest` | 3 | Bloqueio `409 Conflict` na inativacao de medico com consultas futuras ou em atendimento |
+| `ProntuarioServiceTest` | 9 | Criacao (exigindo consulta `EM_ATENDIMENTO` ou `CONCLUIDA`), ownership, janela de edicao e erros de prontuario |
 | `EspecialidadeServiceTest` | 8 | CRUD, duplicidade e inativacao |
 | `UsuarioServiceTest` | 11 | Cadastro de usuarios, vinculo medico e conflitos |
 | `IaServiceTest` | 6 | Chamadas mockadas para IA e regras de contexto medico |
@@ -114,13 +115,13 @@ Validam rotas, serializacao, status HTTP e autorizacao por `@PreAuthorize`.
 | `AtestadoControllerTest` | 10 | Emissao/listagem/detalhamento e permissoes |
 | `AuditoriaControllerTest` | 4 | Auditoria LGPD restrita a auditor/gestor |
 | `AutenticacaoControllerTest` | 17 | Login (incluindo `403` para conta inativa), cadastro/listagem de usuarios, medicos disponiveis e verificacao reflexiva de `@ParameterObject` |
-| `ConsultaControllerTest` | 7 | Agendar, listar e cancelar consultas por role |
+| `ConsultaControllerTest` | 19 | Agendar, listar com filtros, historico, transicoes de status (`confirmar`, `check-in`, `iniciar`, `concluir`, `ausencia`), reagendar e cancelar consultas por role |
 | `ConvenioControllerTest` | 10 | CRUD de convenios e RBAC |
 | `ConvenioPacienteControllerTest` | 6 | Vinculo de convenio ao paciente |
 | `DisponibilidadeMedicoControllerTest` | 9 | Disponibilidade medica, validacao de intervalo/sobreposicao, permissoes e persistencia na inativacao |
 | `EnderecoControllerTest` | 8 | `GET /enderecos/cep/{cep}` e permissoes |
 | `EspecialidadeControllerTest` | 10 | CRUD de especialidades e permissoes |
-| `MedicoControllerTest` | 8 | CRUD de medicos e restricoes por role |
+| `MedicoControllerTest` | 9 | CRUD de medicos, bloqueio `409 Conflict` com consultas pendentes e restricoes por role |
 | `MedicoConvenioControllerTest` | 6 | Convenios aceitos pelo medico, desvinculo e erro 404 padronizado |
 | `PacientesControllerTest` | 10 | CRUD/listagem filtrada de pacientes |
 | `PrescricaoControllerTest` | 15 | Criacao, detalhamento, listagem por prontuario e por paciente (`GET /prescricoes/paciente/{pacienteId}`) e permissoes |
@@ -135,12 +136,12 @@ Arquivos atuais de teste:
 | `frontend/src/api/cep.test.ts` | 2 | Cliente de CEP chama `/enderecos/cep/{cep}` e propaga erro |
 | `frontend/src/api/axios.test.ts` | 5 | Interceptor JWT, 401, 403 e login |
 | `frontend/src/contexts/AuthContext.test.tsx` | 3 | Persistencia de sessao, limpeza em 401 e logout |
-| `frontend/src/components/dashboard/FuncionarioDashboard.test.tsx` | 6 | Dashboard, agenda do dia, loading, erro e retry |
-| `frontend/src/pages/Appointments.test.tsx` | 3 | Retorno vinculado ao medico original (`consultaOrigemId`), `canceladoPor` e modo leitura de auditor |
+| `frontend/src/components/dashboard/FuncionarioDashboard.test.tsx` | 7 | Dashboard, agenda do dia, badge/filtro de status, loading, erro e retry |
+| `frontend/src/pages/Appointments.test.tsx` | 5 | Retorno restrito a consulta `CONCLUIDA`, `canceladoPor`, confirmacao/reagendamento/historico, acoes assistenciais do medico e modo leitura de auditor |
 | `frontend/src/pages/Audit.test.tsx` | 2 | Trilha por prontuario com `recursoTipo`/`recursoId` e consulta direta por recurso clinico |
 | `frontend/src/pages/Doctors.cep.test.tsx` | 3 | Busca de CEP no cadastro de medico |
 | `frontend/src/pages/Login.test.tsx` | 3 | Token invalido, erro 401 de credenciais e 403 de conta inativa |
-| `frontend/src/pages/MedicalRecords.test.tsx` | 4 | Detalhamento, edicao em 24h, bloqueio pos-24h e inativacao por auditor |
+| `frontend/src/pages/MedicalRecords.test.tsx` | 5 | Detalhamento, edicao em 24h, bloqueio pos-24h, inativacao por auditor e seletor restrito a consultas `EM_ATENDIMENTO`/`CONCLUIDA` |
 | `frontend/src/pages/Patients.cep.test.tsx` | 2 | Busca de CEP e payload sanitizado no cadastro de paciente |
 | `frontend/src/pages/Users.test.tsx` | 6 | Cadastro de usuarios e seletor de medicos disponiveis |
 
@@ -181,14 +182,13 @@ Specs em `frontend/e2e/`, executados em serie (1 worker) contra o mesmo banco:
 | Arquivo | Testes | Cobertura principal |
 |---|---:|---|
 | `auth-rbac.spec.ts` | 2 | Login com credenciais invalidas; `ROLE_ADMIN` redirecionado para `/users`, sidebar restrita, bloqueio de `/doctors` e logout |
-| `clinic-smoke.spec.ts` | 7 | Admin cria funcionario; funcionario cria especialidade e medico com busca de CEP; disponibilidade e paciente com busca de CEP; agendamento (bloqueio fora da disponibilidade e sucesso no horario valido); admin vincula usuario medico; `ROLE_MEDICO` cria/detalha/edita prontuario em 24h e emite prescricao; admin cria `ROLE_AUDITOR` que audita prontuario/prescricao e inativa prontuario |
+| `clinic-smoke.spec.ts` | 7 | Admin cria funcionario; funcionario cria especialidade e medico com busca de CEP; disponibilidade e paciente com busca de CEP; agendamento, ciclo `AGENDADA → CONFIRMADA → CHECK_IN`, historico e bloqueio `409` ao tentar inativar medico com consulta futura; admin vincula usuario medico e `ROLE_MEDICO` inicia atendimento (`EM_ATENDIMENTO`); `ROLE_MEDICO` cria/detalha/edita prontuario em 24h, emite prescricao e conclui atendimento (`CONCLUIDA`); admin cria `ROLE_AUDITOR` que audita prontuario/prescricao e inativa prontuario |
 
 A busca de CEP usa um stub HTTP local (`e2e/support/cepStubServer.ts`) no lugar do `Consultar-Cep`. O stub exige o header `X-API-Key`, entao os testes tambem comprovam que o backend injeta a chave na chamada backend-to-backend. Os dados de cada execucao (e-mails, CRM, CPF valido, especialidade) sao gerados por `e2e/support/testData.ts`, o que permite repetir a suite no mesmo banco.
 
 ## Pendencias de Teste
 
-- Criar testes de integracao com MySQL real / Testcontainers validando concorrencia real no vinculo medico-usuario e agendamento (as migrations Flyway `V1`–`V25` ja sao exercitadas pelo job `e2e` do CI).
-- Cobrir fluxo completo de consulta quando os estados adicionais (`V26`) forem implementados.
+- Criar testes de integracao com MySQL real / Testcontainers validando concorrencia real no vinculo medico-usuario e agendamento (as migrations Flyway `V1`–`V26` ja sao exercitadas pelo job `e2e` do CI).
 
 ## Troubleshooting Docker Local
 

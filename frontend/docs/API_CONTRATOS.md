@@ -189,6 +189,8 @@ Perfis de acesso (`Role` em `src/types/auth.ts`):
 ### `DELETE /medicos/{id}` (`ROLE_FUNCIONARIO`)
 ```ts
 // Response 204 — exclusão lógica
+// Response 409 — ConflitoException quando há consultas futuras pendentes ou em atendimento
+// { campo: "conflito", mensagem: "Não é possível inativar o médico pois existem N consulta(s)..." }
 ```
 
 ---
@@ -275,12 +277,14 @@ Perfis de acesso (`Role` em `src/types/auth.ts`):
   data: string,
   prioridade: 'ROTINA' | 'PRIORITARIO' | 'URGENCIA',
   tipo: 'NORMAL' | 'RETORNO',
+  status: StatusConsulta,
   consultaOrigemId: number | null,
+  consultaReagendadaDeId: number | null,
   convenioId: number | null
 }
 ```
 
-### `GET /consultas?page=0&size=10` (`ROLE_FUNCIONARIO` / `ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
+### `GET /consultas?page=0&size=10&status=&incluirEncerradas=false` (`ROLE_FUNCIONARIO` / `ROLE_AUDITOR` / `ROLE_GESTOR` / `ROLE_MEDICO`)
 ```ts
 // Response 200 — Page<ConsultaListagem> (ROLE_MEDICO vê apenas suas consultas)
 {
@@ -293,15 +297,28 @@ Perfis de acesso (`Role` em `src/types/auth.ts`):
     dataHora: string,
     prioridade: 'ROTINA' | 'PRIORITARIO' | 'URGENCIA',
     tipo: 'NORMAL' | 'RETORNO',
-    consultaOrigemId: number | null
+    status: 'AGENDADA' | 'CONFIRMADA' | 'CHECK_IN' | 'EM_ATENDIMENTO' | 'CONCLUIDA' | 'CANCELADA' | 'AUSENTE' | 'REAGENDADA',
+    consultaOrigemId: number | null,
+    consultaReagendadaDeId: number | null
   }>,
   ...
 }
 ```
 
+### Transições, Reagendamento e Histórico de Status
+```ts
+// PATCH /consultas/{id}/confirmar    (ROLE_FUNCIONARIO) → 200 DadosDetalhamentoConsulta
+// PATCH /consultas/{id}/check-in     (ROLE_FUNCIONARIO) → 200 DadosDetalhamentoConsulta
+// PATCH /consultas/{id}/iniciar      (ROLE_MEDICO responsável) → 200 DadosDetalhamentoConsulta
+// PATCH /consultas/{id}/concluir     (ROLE_MEDICO responsável) → 200 DadosDetalhamentoConsulta
+// PATCH /consultas/{id}/ausencia     (ROLE_FUNCIONARIO; body opcional { observacao?: string }) → 200 DadosDetalhamentoConsulta
+// POST  /consultas/{id}/reagendar    (ROLE_FUNCIONARIO; { novaData, idMedico?, solicitadoPor, motivo? }) → 200 DadosDetalhamentoConsulta
+// GET   /consultas/{id}/historico    (FUNCIONARIO | MEDICO responsável | AUDITOR | GESTOR) → 200 HistoricoStatusConsulta[]
+```
+
 ### `DELETE /consultas` (`ROLE_FUNCIONARIO`)
 ```ts
-// Request (ConsultaCancelamento) — enviado no body do DELETE (motivo + canceladoPor opcional em Appointments.tsx)
+// Request (ConsultaCancelamento) — enviado no body do DELETE (24h exigido apenas para PACIENTE)
 {
   idConsulta: number,
   motivo: 'PACIENTE_DESISTIU' | 'MEDICO_CANCELOU' | 'OUTROS',
