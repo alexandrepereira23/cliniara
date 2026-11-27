@@ -87,12 +87,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
       >
         <div className="flex h-full flex-col">
           {/* Header */}
-          <div className="h-16 flex items-center justify-between border-b border-sidebar-border px-5 shrink-0">
+          <div className="h-16 flex items-center justify-between border-b border-sidebar-border px-4 shrink-0">
             <div className="flex items-center">
               <img
-                src="/imagens/cliniara-logo-600x200.png"
+                src="/imagens/cliniara-logo.png"
                 alt="Cliniara — Sistema Clínico"
-                className="h-10 w-auto object-contain"
+                className="h-12 w-auto max-w-[192px] object-contain"
               />
             </div>
             <button

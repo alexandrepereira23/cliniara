@@ -55,16 +55,16 @@ export default function Login() {
   return (
     <div className="min-h-screen flex bg-background">
       {/* Lado esquerdo — branding */}
-      <div className="hidden lg:flex flex-col justify-between w-[480px] flex-shrink-0 bg-card px-14 py-16 border-r border-border">
+      <div className="hidden lg:flex flex-col w-[480px] flex-shrink-0 bg-card px-14 py-16 border-r border-border">
         <div className="flex items-center">
           <img
-            src="/imagens/cliniara-logo-600x200.png"
+            src="/imagens/cliniara-logo.png"
             alt="Cliniara — Sistema Clínico"
-            className="h-12 w-auto object-contain"
+            className="h-16 w-auto object-contain"
           />
         </div>
 
-        <div>
+        <div className="my-auto pb-12">
           <h1 className="text-3xl font-bold text-foreground leading-snug mb-4">
             Cuidado clínico<br />
             com mais precisão
@@ -74,19 +74,6 @@ export default function Login() {
             pensado para o fluxo real de uma clínica.
           </p>
         </div>
-
-        <div className="flex flex-col gap-3">
-          {[
-            'Prontuário eletrônico com janela de edição segura',
-            'Agendamento inteligente com disponibilidade do médico',
-            'IA clínica para pré-diagnóstico e laudos',
-          ].map((item) => (
-            <div key={item} className="flex items-start gap-2.5">
-              <div className="w-1.5 h-1.5 rounded-full bg-primary mt-1.5 flex-shrink-0" />
-              <p className="text-sm text-muted-foreground leading-relaxed">{item}</p>
-            </div>
-          ))}
-        </div>
       </div>
 
       {/* Lado direito — formulário */}
@@ -95,9 +82,9 @@ export default function Login() {
           {/* Logo mobile */}
           <div className="flex items-center mb-10 lg:hidden">
             <img
-              src="/imagens/cliniara-logo-600x200.png"
+              src="/imagens/cliniara-logo.png"
               alt="Cliniara — Sistema Clínico"
-              className="h-10 w-auto object-contain"
+              className="h-14 w-auto object-contain"
             />
           </div>
 
