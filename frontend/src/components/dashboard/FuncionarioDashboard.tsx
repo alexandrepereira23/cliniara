@@ -28,7 +28,15 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { consultasApi } from '@/api/consultas';
-import type { ConsultaListagem, Prioridade, TipoConsulta } from '@/types/api';
+import { statusConsultaBadge, statusConsultaLabel } from '@/lib/consultaStatus';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import type { ConsultaListagem, Prioridade, StatusConsulta, TipoConsulta } from '@/types/api';
 
 const DASHBOARD_PAGE_SIZE = 100;
 
@@ -158,32 +166,40 @@ function AgendaList({ appointments }: { appointments: ConsultaListagem[] }) {
   return (
     <>
       <div className="space-y-3 md:hidden">
-        {appointments.map(appointment => (
-          <article key={appointment.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium text-primary">{formatTime(appointment.dataHora)}</p>
-                <h3 className="mt-1 font-semibold text-foreground">{appointment.nomePaciente}</h3>
+        {appointments.map(appointment => {
+          const status: StatusConsulta = appointment.status ?? 'AGENDADA';
+          return (
+            <article key={appointment.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-primary">{formatTime(appointment.dataHora)}</p>
+                  <h3 className="mt-1 font-semibold text-foreground">{appointment.nomePaciente}</h3>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <Badge variant={statusConsultaBadge[status]}>
+                    {statusConsultaLabel[status]}
+                  </Badge>
+                  <Badge variant={prioridadeBadge[appointment.prioridade]}>
+                    {prioridadeLabel[appointment.prioridade]}
+                  </Badge>
+                </div>
               </div>
-              <Badge variant={prioridadeBadge[appointment.prioridade]}>
-                {prioridadeLabel[appointment.prioridade]}
-              </Badge>
-            </div>
-            <dl className="mt-4 space-y-2 text-sm">
-              <div>
-                <dt className="text-muted-foreground">Médico</dt>
-                <dd className="font-medium text-foreground">{appointment.nomeMedico}</dd>
+              <dl className="mt-4 space-y-2 text-sm">
+                <div>
+                  <dt className="text-muted-foreground">Médico</dt>
+                  <dd className="font-medium text-foreground">{appointment.nomeMedico}</dd>
+                </div>
+                <div>
+                  <dt className="text-muted-foreground">Tipo</dt>
+                  <dd className="font-medium text-foreground">{tipoConsultaLabel[appointment.tipo]}</dd>
+                </div>
+              </dl>
+              <div className="mt-4">
+                <AppointmentAction />
               </div>
-              <div>
-                <dt className="text-muted-foreground">Tipo</dt>
-                <dd className="font-medium text-foreground">{tipoConsultaLabel[appointment.tipo]}</dd>
-              </div>
-            </dl>
-            <div className="mt-4">
-              <AppointmentAction />
-            </div>
-          </article>
-        ))}
+            </article>
+          );
+        })}
       </div>
 
       <div className="hidden overflow-x-auto md:block">
@@ -193,28 +209,37 @@ function AgendaList({ appointments }: { appointments: ConsultaListagem[] }) {
               <TableHead>Horário</TableHead>
               <TableHead>Paciente</TableHead>
               <TableHead>Médico</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Prioridade</TableHead>
               <TableHead>Tipo</TableHead>
               <TableHead>Ações</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {appointments.map(appointment => (
-              <TableRow key={appointment.id}>
-                <TableCell className="font-medium">{formatTime(appointment.dataHora)}</TableCell>
-                <TableCell>{appointment.nomePaciente}</TableCell>
-                <TableCell>{appointment.nomeMedico}</TableCell>
-                <TableCell>
-                  <Badge variant={prioridadeBadge[appointment.prioridade]}>
-                    {prioridadeLabel[appointment.prioridade]}
-                  </Badge>
-                </TableCell>
-                <TableCell>{tipoConsultaLabel[appointment.tipo]}</TableCell>
-                <TableCell>
-                  <AppointmentAction />
-                </TableCell>
-              </TableRow>
-            ))}
+            {appointments.map(appointment => {
+              const status: StatusConsulta = appointment.status ?? 'AGENDADA';
+              return (
+                <TableRow key={appointment.id}>
+                  <TableCell className="font-medium">{formatTime(appointment.dataHora)}</TableCell>
+                  <TableCell>{appointment.nomePaciente}</TableCell>
+                  <TableCell>{appointment.nomeMedico}</TableCell>
+                  <TableCell>
+                    <Badge variant={statusConsultaBadge[status]}>
+                      {statusConsultaLabel[status]}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={prioridadeBadge[appointment.prioridade]}>
+                      {prioridadeLabel[appointment.prioridade]}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>{tipoConsultaLabel[appointment.tipo]}</TableCell>
+                  <TableCell>
+                    <AppointmentAction />
+                  </TableCell>
+                </TableRow>
+              );
+            })}
           </TableBody>
         </Table>
       </div>
@@ -222,9 +247,12 @@ function AgendaList({ appointments }: { appointments: ConsultaListagem[] }) {
   );
 }
 
+const activeStatuses: StatusConsulta[] = ['AGENDADA', 'CONFIRMADA', 'CHECK_IN', 'EM_ATENDIMENTO', 'CONCLUIDA'];
+
 export function FuncionarioDashboard() {
   const [appointments, setAppointments] = useState<ConsultaListagem[]>([]);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'TODOS' | StatusConsulta>('TODOS');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
@@ -274,11 +302,15 @@ export function FuncionarioDashboard() {
   const todayAppointments = appointments
     .filter(appointment => isSameLocalDay(appointment.dataHora, now))
     .sort(sortByDateTime);
-  const nextAppointment = todayAppointments.find(appointment => new Date(appointment.dataHora) >= now);
+  const nextAppointment = todayAppointments.find(
+    appointment => appointment.status !== 'CONCLUIDA' && new Date(appointment.dataHora) >= now
+  );
   const normalizedSearch = normalizeText(search);
-  const filteredAppointments = normalizedSearch
-    ? todayAppointments.filter(appointment => normalizeText(appointment.nomePaciente).includes(normalizedSearch))
-    : todayAppointments;
+  const filteredAppointments = todayAppointments.filter(appointment => {
+    const matchesSearch = !normalizedSearch || normalizeText(appointment.nomePaciente).includes(normalizedSearch);
+    const matchesStatus = statusFilter === 'TODOS' || (appointment.status ?? 'AGENDADA') === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
   const dataUnavailable = error && appointments.length === 0;
 
   return (
@@ -384,7 +416,7 @@ export function FuncionarioDashboard() {
                     Agenda de hoje
                   </CardTitle>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    A lista usa somente consultas ativas da API. Status, especialidade, faltas e cancelamentos ainda não estão disponíveis neste contrato.
+                    Acompanhe as consultas ativas de hoje e filtre por paciente ou status de atendimento.
                   </p>
                 </div>
                 <Button
@@ -399,20 +431,37 @@ export function FuncionarioDashboard() {
                 </Button>
               </div>
 
-              <div className="space-y-2">
-                <label htmlFor="dashboard-patient-search" className="text-sm font-medium text-foreground">
-                  Buscar paciente
-                </label>
-                <SearchInput
-                  id="dashboard-patient-search"
-                  ariaLabel="Buscar consulta pelo nome do paciente"
-                  placeholder="Buscar por nome do paciente..."
-                  value={search}
-                  onChange={setSearch}
-                />
-                <p className="text-xs text-muted-foreground">
-                  Filtro por status indisponível: o endpoint atual ainda não informa status de atendimento.
-                </p>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-[minmax(0,1fr)_14rem]">
+                <div className="space-y-2">
+                  <label htmlFor="dashboard-patient-search" className="text-sm font-medium text-foreground">
+                    Buscar paciente
+                  </label>
+                  <SearchInput
+                    id="dashboard-patient-search"
+                    ariaLabel="Buscar consulta pelo nome do paciente"
+                    placeholder="Buscar por nome do paciente..."
+                    value={search}
+                    onChange={setSearch}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label htmlFor="dashboard-status-filter" className="text-sm font-medium text-foreground">
+                    Filtrar por status
+                  </label>
+                  <Select value={statusFilter} onValueChange={v => setStatusFilter(v as 'TODOS' | StatusConsulta)}>
+                    <SelectTrigger id="dashboard-status-filter" aria-label="Filtrar agenda por status">
+                      <SelectValue placeholder="Todos os status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="TODOS">Todos os status</SelectItem>
+                      {activeStatuses.map(status => (
+                        <SelectItem key={status} value={status}>
+                          {statusConsultaLabel[status]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardHeader>
             <CardContent>

@@ -24,6 +24,7 @@ import { consultasApi } from '@/api/consultas';
 import { useAuth } from '@/hooks/useAuth';
 import { canInactivateProntuario } from '@/lib/rbac';
 import { extractApiError } from '@/lib/utils';
+import { statusConsultaLabel } from '@/lib/consultaStatus';
 import type { ProntuarioListagem, ProntuarioDetalhamento, ConsultaListagem } from '@/types/api';
 
 const EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -81,13 +82,11 @@ export default function MedicalRecords() {
   const handleOpenCreate = async () => {
     setCreateForm({ consultaId: '', anamnese: '', diagnostico: '', cid10: '', observacoes: '' });
     setIsCreateOpen(true);
-    if (consultas.length === 0) {
-      try {
-        const r = await consultasApi.list(0, 100);
-        setConsultas(r.content);
-      } catch {
-        toast.error('Erro ao carregar consultas');
-      }
+    try {
+      const r = await consultasApi.list(0, 100);
+      setConsultas(r.content);
+    } catch {
+      toast.error('Erro ao carregar consultas');
     }
   };
 
@@ -202,8 +201,12 @@ export default function MedicalRecords() {
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 
+  const consultasElegiveis = consultas.filter(
+    c => c.status === 'EM_ATENDIMENTO' || c.status === 'CONCLUIDA'
+  );
+
   const formatConsulta = (c: ConsultaListagem) =>
-    `${c.nomePaciente} — ${new Date(c.dataHora).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}`;
+    `${c.nomePaciente} — ${new Date(c.dataHora).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })} (${statusConsultaLabel[c.status] ?? c.status})`;
 
   return (
     <DashboardLayout>
@@ -335,13 +338,18 @@ export default function MedicalRecords() {
                   <SelectValue placeholder="Selecione a consulta" />
                 </SelectTrigger>
                 <SelectContent>
-                  {consultas.map(c => (
+                  {consultasElegiveis.map(c => (
                     <SelectItem key={c.id} value={String(c.id)}>
                       {formatConsulta(c)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {consultasElegiveis.length === 0 && (
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  Nenhuma consulta em atendimento ou concluída disponível. Inicie o atendimento na tela de Consultas antes de criar o prontuário.
+                </p>
+              )}
             </div>
 
             <div>

@@ -371,8 +371,8 @@ export default function Doctors() {
       await medicosApi.remove(id);
       toast.success('Médico inativado com sucesso');
       fetchDoctors(page);
-    } catch {
-      toast.error('Erro ao inativar médico');
+    } catch (err: any) {
+      toast.error(extractApiError(err, 'Erro ao inativar médico'));
     }
   };
 
@@ -441,10 +441,22 @@ export default function Doctors() {
                           </Button>
                           {allowWrite && (
                             <>
-                              <Button variant="ghost" size="sm" onClick={() => handleOpenModal(doctor)}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                aria-label="Editar médico"
+                                title="Editar médico"
+                                onClick={() => handleOpenModal(doctor)}
+                              >
                                 <Edit className="h-4 w-4" />
                               </Button>
-                              <Button variant="ghost" size="sm" onClick={() => handleDelete(doctor.id)}>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                aria-label="Inativar médico"
+                                title="Inativar médico"
+                                onClick={() => handleDelete(doctor.id)}
+                              >
                                 <Trash2 className="h-4 w-4 text-destructive" />
                               </Button>
                             </>

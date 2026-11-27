@@ -171,9 +171,36 @@ test.describe.serial('Jornada Clínica Smoke E2E (Usuários, CEP, Disponibilidad
 
     await expect(apptDialog).toBeHidden()
     await expect(page.getByText('Consulta agendada com sucesso')).toBeVisible()
+
+    // Recepção avança o ciclo da consulta: AGENDADA -> CONFIRMADA -> CHECK_IN e valida histórico
+    const apptRow = page.getByRole('row').filter({ hasText: run.pacienteNome }).filter({ hasText: run.medicoNome })
+    await expect(apptRow.getByText('Agendada')).toBeVisible()
+
+    await apptRow.getByRole('button', { name: 'Confirmar consulta' }).click()
+    await expect(page.getByText('Consulta confirmada com sucesso')).toBeVisible()
+    await expect(apptRow.getByText('Confirmada')).toBeVisible()
+
+    await apptRow.getByRole('button', { name: 'Registrar check-in' }).click()
+    await expect(page.getByText('Check-in registrado com sucesso')).toBeVisible()
+    await expect(apptRow.getByText('Check-in')).toBeVisible()
+
+    await apptRow.getByRole('button', { name: 'Ver histórico' }).click()
+    const historyDialog = page.getByRole('dialog')
+    await expect(historyDialog.getByText('Consulta confirmada pela recepção')).toBeVisible()
+    await expect(historyDialog.getByText('Check-in realizado na recepção')).toBeVisible()
+    await historyDialog.getByRole('button', { name: 'Fechar' }).click()
+    await expect(historyDialog).toBeHidden()
+
+    // Valida proteção 409 ao tentar inativar médico que possui consulta futura pendente
+    await page.locator('aside nav').getByRole('link', { name: 'Médicos' }).click()
+    await expect(page).toHaveURL(/\/doctors$/)
+    const doctorRow = page.getByRole('row').filter({ hasText: run.medicoNome })
+    await doctorRow.getByRole('button', { name: 'Inativar médico' }).click()
+    await expect(page.getByText(/Não é possível inativar o médico pois existem 1 consulta\(s\)/i)).toBeVisible()
+    await expect(doctorRow).toBeVisible()
   })
 
-  test('5. ROLE_ADMIN vincula usuário médico e ROLE_MEDICO visualiza sua agenda e menu de IA clínica', async ({ page }) => {
+  test('5. ROLE_ADMIN vincula usuário médico e ROLE_MEDICO visualiza sua agenda, inicia atendimento e vê IA clínica', async ({ page }) => {
     await loginAs(page, ADMIN_LOGIN, ADMIN_PASSWORD)
     await expect(page).toHaveURL(/\/users$/)
 
@@ -209,12 +236,17 @@ test.describe.serial('Jornada Clínica Smoke E2E (Usuários, CEP, Disponibilidad
 
     await sidebarNav.getByRole('link', { name: 'Consultas' }).click()
     await expect(page).toHaveURL(/\/appointments$/)
-    await expect(
-      page.getByRole('row').filter({ hasText: run.pacienteNome }).filter({ hasText: run.medicoNome }),
-    ).toBeVisible()
+    const medicoApptRow = page.getByRole('row').filter({ hasText: run.pacienteNome }).filter({ hasText: run.medicoNome })
+    await expect(medicoApptRow).toBeVisible()
+    await expect(medicoApptRow.getByText('Check-in')).toBeVisible()
+
+    // Médico inicia o atendimento (CHECK_IN -> EM_ATENDIMENTO)
+    await medicoApptRow.getByRole('button', { name: 'Iniciar atendimento' }).click()
+    await expect(page.getByText('Atendimento iniciado')).toBeVisible()
+    await expect(medicoApptRow.getByText('Em atendimento')).toBeVisible()
   })
 
-  test('6. ROLE_MEDICO cria, detalha e edita prontuário em 24h e emite prescrição', async ({ page }) => {
+  test('6. ROLE_MEDICO cria, detalha e edita prontuário em 24h, emite prescrição e conclui atendimento', async ({ page }) => {
     await loginAs(page, run.medicoLogin, run.medicoSenha)
     await expect(page).toHaveURL(/\/$/)
 
@@ -277,6 +309,14 @@ test.describe.serial('Jornada Clínica Smoke E2E (Usuários, CEP, Disponibilidad
 
     await expect(prescDialog).toBeHidden()
     await expect(page.getByText('Prescrição criada com sucesso')).toBeVisible()
+
+    // Conclui o atendimento da consulta (EM_ATENDIMENTO -> CONCLUIDA)
+    await sidebarNav.getByRole('link', { name: 'Consultas' }).click()
+    await expect(page).toHaveURL(/\/appointments$/)
+    const finishRow = page.getByRole('row').filter({ hasText: run.pacienteNome }).filter({ hasText: run.medicoNome })
+    await finishRow.getByRole('button', { name: 'Concluir atendimento' }).click()
+    await expect(page.getByText('Atendimento concluído')).toBeVisible()
+    await expect(finishRow.getByText('Concluída')).toBeVisible()
   })
 
   test('7. ROLE_ADMIN cria ROLE_AUDITOR que audita prontuário/prescrição e inativa prontuário', async ({ page }) => {

@@ -10,7 +10,7 @@ import { conveniosApi } from '@/api/convenios'
 import { AuthContext } from '@/contexts/AuthContext'
 import { toast } from 'sonner'
 import type { Role } from '@/types/auth'
-import type { ConsultaListagem } from '@/types/api'
+import type { ConsultaDetalhamento, ConsultaListagem } from '@/types/api'
 
 vi.mock('@/components/DashboardLayout', () => ({
   DashboardLayout: ({ children }: { children: ReactNode }) => <div>{children}</div>,
@@ -21,6 +21,13 @@ vi.mock('@/api/consultas', () => ({
     list: vi.fn(),
     schedule: vi.fn(),
     cancel: vi.fn(),
+    confirmar: vi.fn(),
+    checkIn: vi.fn(),
+    iniciar: vi.fn(),
+    concluir: vi.fn(),
+    registrarAusencia: vi.fn(),
+    reagendar: vi.fn(),
+    historico: vi.fn(),
   },
 }))
 
@@ -90,7 +97,7 @@ function futureDateInput(daysAhead = 5) {
   return `${yyyy}-${mm}-${dd}`
 }
 
-const consultaOriginal: ConsultaListagem = {
+const consultaConcluida: ConsultaListagem = {
   id: 50,
   idMedico: 2,
   nomeMedico: 'Dra. Ana Paula',
@@ -99,15 +106,55 @@ const consultaOriginal: ConsultaListagem = {
   dataHora: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
   prioridade: 'ROTINA',
   tipo: 'NORMAL',
+  status: 'CONCLUIDA',
   consultaOrigemId: null,
+}
+
+const consultaAgendada: ConsultaListagem = {
+  id: 60,
+  idMedico: 2,
+  nomeMedico: 'Dra. Ana Paula',
+  idPaciente: 7,
+  nomePaciente: 'Maria Oliveira',
+  dataHora: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+  prioridade: 'ROTINA',
+  tipo: 'NORMAL',
+  status: 'AGENDADA',
+  consultaOrigemId: null,
+}
+
+const detalhamentoMock: ConsultaDetalhamento = {
+  id: 60,
+  idMedico: 2,
+  idPaciente: 7,
+  data: consultaAgendada.dataHora,
+  prioridade: 'ROTINA',
+  tipo: 'NORMAL',
+  status: 'CONFIRMADA',
 }
 
 describe('Appointments', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    consultasMock.list.mockResolvedValue(page([consultaOriginal]))
-    consultasMock.schedule.mockResolvedValue(consultaOriginal)
+    consultasMock.list.mockResolvedValue(page([consultaConcluida, consultaAgendada]))
+    consultasMock.schedule.mockResolvedValue(detalhamentoMock)
     consultasMock.cancel.mockResolvedValue(undefined)
+    consultasMock.confirmar.mockResolvedValue({ ...detalhamentoMock, status: 'CONFIRMADA' })
+    consultasMock.checkIn.mockResolvedValue({ ...detalhamentoMock, status: 'CHECK_IN' })
+    consultasMock.iniciar.mockResolvedValue({ ...detalhamentoMock, status: 'EM_ATENDIMENTO' })
+    consultasMock.concluir.mockResolvedValue({ ...detalhamentoMock, status: 'CONCLUIDA' })
+    consultasMock.registrarAusencia.mockResolvedValue({ ...detalhamentoMock, status: 'AUSENTE' })
+    consultasMock.reagendar.mockResolvedValue({ ...detalhamentoMock, id: 61, status: 'AGENDADA', consultaReagendadaDeId: 60 })
+    consultasMock.historico.mockResolvedValue([
+      {
+        id: 1,
+        statusAnterior: null,
+        statusNovo: 'AGENDADA',
+        usuarioLogin: 'recepcao@cliniara.com',
+        motivo: 'Consulta agendada',
+        alteradoEm: new Date().toISOString(),
+      },
+    ])
     medicosMock.list.mockResolvedValue(page([
       { id: 2, nome: 'Dra. Ana Paula', email: 'ana@cliniara.com', crm: '12345', especialidade: 'Cardiologia' },
       { id: 3, nome: 'Dr. Bruno', email: 'bruno@cliniara.com', crm: '54321', especialidade: 'Ortopedia' },
@@ -118,7 +165,7 @@ describe('Appointments', () => {
     conveniosMock.listAll.mockResolvedValue([])
   })
 
-  it('vincula automaticamente o médico da consulta original ao selecionar retorno e envia consultaOrigemId', async () => {
+  it('vincula automaticamente o médico da consulta CONCLUIDA ao selecionar retorno e envia consultaOrigemId', async () => {
     const user = userEvent.setup()
     renderWithRole('ROLE_FUNCIONARIO')
 
@@ -130,6 +177,7 @@ describe('Appointments', () => {
     await user.click(await screen.findByRole('option', { name: /João Silva/i }))
 
     await user.click(within(dialog).getByRole('combobox', { name: /retorno de consulta/i }))
+    expect(screen.queryByRole('option', { name: /Consulta #60/i })).not.toBeInTheDocument()
     await user.click(await screen.findByRole('option', { name: /Consulta #50 — Dra\. Ana Paula/i }))
 
     const medicoTrigger = within(dialog).getByRole('combobox', { name: /médico/i })
@@ -153,11 +201,11 @@ describe('Appointments', () => {
     expect(toastMock.success).toHaveBeenCalledWith('Retorno agendado com sucesso')
   })
 
-  it('envia canceladoPor ao cancelar consulta', async () => {
+  it('envia canceladoPor ao cancelar consulta agendada', async () => {
     const user = userEvent.setup()
     renderWithRole('ROLE_FUNCIONARIO')
 
-    const row = await screen.findByRole('row', { name: /João Silva/i })
+    const row = await screen.findByRole('row', { name: /Maria Oliveira/i })
     await user.click(within(row).getByRole('button', { name: /cancelar consulta/i }))
 
     const dialog = await screen.findByRole('dialog')
@@ -171,7 +219,7 @@ describe('Appointments', () => {
 
     await waitFor(() => {
       expect(consultasMock.cancel).toHaveBeenCalledWith({
-        idConsulta: 50,
+        idConsulta: 60,
         motivo: 'PACIENTE_DESISTIU',
         canceladoPor: 'PACIENTE',
       })
@@ -179,10 +227,63 @@ describe('Appointments', () => {
     expect(toastMock.success).toHaveBeenCalledWith('Consulta cancelada com sucesso')
   })
 
+  it('ROLE_FUNCIONARIO confirma, reagenda e visualiza histórico da consulta', async () => {
+    const user = userEvent.setup()
+    renderWithRole('ROLE_FUNCIONARIO')
+
+    const row = await screen.findByRole('row', { name: /Maria Oliveira/i })
+
+    await user.click(within(row).getByRole('button', { name: /confirmar consulta/i }))
+    await waitFor(() => expect(consultasMock.confirmar).toHaveBeenCalledWith(60))
+
+    await user.click(within(row).getByRole('button', { name: /reagendar consulta/i }))
+    const rescheduleDialog = await screen.findByRole('dialog')
+    const novaData = futureDateInput(8)
+    fireEvent.change(within(rescheduleDialog).getByLabelText(/nova data \*/i), { target: { value: novaData } })
+    fireEvent.change(within(rescheduleDialog).getByLabelText(/novo horário \*/i), { target: { value: '14:00' } })
+    fireEvent.change(within(rescheduleDialog).getByLabelText(/motivo/i), { target: { value: 'Ajuste de agenda' } })
+    await user.click(within(rescheduleDialog).getByRole('button', { name: /confirmar reagendamento/i }))
+
+    await waitFor(() => {
+      expect(consultasMock.reagendar).toHaveBeenCalledWith(60, {
+        novaData: `${novaData}T14:00:00`,
+        idMedico: 2,
+        solicitadoPor: 'CLINICA',
+        motivo: 'Ajuste de agenda',
+      })
+    })
+    expect(toastMock.success).toHaveBeenCalledWith('Consulta reagendada com sucesso')
+
+    await user.click(within(row).getByRole('button', { name: /ver histórico/i }))
+    await waitFor(() => expect(consultasMock.historico).toHaveBeenCalledWith(60))
+    const historyDialog = await screen.findByRole('dialog')
+    expect(within(historyDialog).getByText('Consulta agendada')).toBeInTheDocument()
+    expect(within(historyDialog).getByText(/recepcao@cliniara\.com/i)).toBeInTheDocument()
+  })
+
+  it('ROLE_MEDICO executa ações assistenciais (iniciar e concluir) e não vê ações da recepção', async () => {
+    const user = userEvent.setup()
+    consultasMock.list.mockResolvedValue(page([
+      { ...consultaAgendada, id: 70, nomePaciente: 'Carlos Checkin', status: 'CHECK_IN' },
+      { ...consultaAgendada, id: 71, nomePaciente: 'Beatriz Atendimento', status: 'EM_ATENDIMENTO' },
+    ]))
+
+    renderWithRole('ROLE_MEDICO')
+
+    const rowCheckIn = await screen.findByRole('row', { name: /Carlos Checkin/i })
+    expect(within(rowCheckIn).queryByRole('button', { name: /cancelar consulta/i })).not.toBeInTheDocument()
+    await user.click(within(rowCheckIn).getByRole('button', { name: /iniciar atendimento/i }))
+    await waitFor(() => expect(consultasMock.iniciar).toHaveBeenCalledWith(70))
+
+    const rowEmAtendimento = await screen.findByRole('row', { name: /Beatriz Atendimento/i })
+    await user.click(within(rowEmAtendimento).getByRole('button', { name: /concluir atendimento/i }))
+    await waitFor(() => expect(consultasMock.concluir).toHaveBeenCalledWith(71))
+  })
+
   it('ROLE_AUDITOR visualiza retorno vinculado em modo leitura sem carregar catálogos de agendamento', async () => {
     consultasMock.list.mockResolvedValue(page([
       {
-        ...consultaOriginal,
+        ...consultaConcluida,
         id: 51,
         tipo: 'RETORNO',
         consultaOrigemId: 50,
@@ -194,6 +295,7 @@ describe('Appointments', () => {
     expect(await screen.findByText('Retorno (#50)')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /nova consulta/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /cancelar consulta/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /ver histórico/i })).toBeInTheDocument()
     expect(medicosMock.list).not.toHaveBeenCalled()
     expect(pacientesMock.list).not.toHaveBeenCalled()
     expect(conveniosMock.listAll).not.toHaveBeenCalled()

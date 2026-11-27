@@ -30,22 +30,42 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Calendar, XCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  Calendar,
+  CalendarClock,
+  CheckCheck,
+  CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
+  History,
+  LogIn,
+  Play,
+  UserX,
+  XCircle,
+} from 'lucide-react';
 import { toast } from 'sonner';
-import { consultasApi } from '@/api/consultas';
+import { consultasApi, type ConsultaListFilters } from '@/api/consultas';
 import { medicosApi } from '@/api/medicos';
 import { pacientesApi } from '@/api/pacientes';
 import { conveniosApi } from '@/api/convenios';
 import { useAuth } from '@/hooks/useAuth';
 import { canWrite } from '@/lib/rbac';
 import { extractApiError } from '@/lib/utils';
+import {
+  allStatusConsultas,
+  statusConsultaBadge,
+  statusConsultaLabel,
+} from '@/lib/consultaStatus';
 import type {
   ConsultaListagem,
   ConsultaAgendamento,
   ConsultaCancelamento,
+  ConsultaReagendamento,
   CanceladoPor,
+  HistoricoStatusConsulta,
   MotivoCancelamento,
   Prioridade,
+  StatusConsulta,
   TipoConsulta,
   MedicoListagem,
   PacienteListagem,
@@ -80,6 +100,8 @@ const canceladoPorLabel: Record<CanceladoPor, string> = {
   CLINICA: 'Clínica',
 };
 
+type StatusFilterOption = 'ATIVAS' | 'TODAS' | StatusConsulta;
+
 interface ScheduleForm {
   idPaciente: string
   idMedico: string
@@ -88,6 +110,14 @@ interface ScheduleForm {
   prioridade: Prioridade | ''
   convenioId: string
   consultaOrigemId: string
+}
+
+interface RescheduleForm {
+  dateInput: string
+  timeInput: string
+  idMedico: string
+  solicitadoPor: CanceladoPor
+  motivo: string
 }
 
 const emptyScheduleForm = (): ScheduleForm => ({
@@ -100,9 +130,32 @@ const emptyScheduleForm = (): ScheduleForm => ({
   consultaOrigemId: '',
 });
 
+const emptyRescheduleForm = (): RescheduleForm => ({
+  dateInput: '',
+  timeInput: '',
+  idMedico: '',
+  solicitadoPor: 'CLINICA',
+  motivo: '',
+});
+
+function isTodayOrPast(iso: string): boolean {
+  const apptDate = new Date(iso);
+  const now = new Date();
+  const apptDay = new Date(apptDate.getFullYear(), apptDate.getMonth(), apptDate.getDate());
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return apptDay.getTime() <= today.getTime();
+}
+
+function buildListFilters(filter: StatusFilterOption): ConsultaListFilters | undefined {
+  if (filter === 'ATIVAS') return undefined;
+  if (filter === 'TODAS') return { incluirEncerradas: true };
+  return { status: filter };
+}
+
 export default function Appointments() {
   const { user } = useAuth();
   const allowWrite = canWrite(user?.role);
+  const isMedico = user?.role === 'ROLE_MEDICO';
 
   const [appointments, setAppointments] = useState<ConsultaListagem[]>([]);
   const [activeConsultasForReturn, setActiveConsultasForReturn] = useState<ConsultaListagem[]>([]);
@@ -110,9 +163,11 @@ export default function Appointments() {
   const [patients, setPatients] = useState<PacienteListagem[]>([]);
   const [convenios, setConvenios] = useState<ConvenioListagem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<number | null>(null);
   const [page, setPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState<StatusFilterOption>('ATIVAS');
 
   // Schedule modal
   const [isScheduleOpen, setIsScheduleOpen] = useState(false);
@@ -126,12 +181,32 @@ export default function Appointments() {
   const [canceladoPor, setCanceladoPor] = useState<CanceladoPor | 'none'>('none');
   const [cancelling, setCancelling] = useState(false);
 
-  const fetchAll = async (p = page) => {
+  // Reschedule modal
+  const [rescheduleTarget, setRescheduleTarget] = useState<ConsultaListagem | null>(null);
+  const [rescheduleForm, setRescheduleForm] = useState<RescheduleForm>(emptyRescheduleForm());
+  const [rescheduling, setRescheduling] = useState(false);
+
+  // Absence modal
+  const [absenceTarget, setAbsenceTarget] = useState<ConsultaListagem | null>(null);
+  const [absenceObs, setAbsenceObs] = useState('');
+  const [markingAbsence, setMarkingAbsence] = useState(false);
+
+  // History modal
+  const [historyTarget, setHistoryTarget] = useState<ConsultaListagem | null>(null);
+  const [historyItems, setHistoryItems] = useState<HistoricoStatusConsulta[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+
+  const fetchAll = async (p = page, filter = statusFilter) => {
     setLoading(true);
     try {
+      const filters = buildListFilters(filter);
+      const listPromise = filters
+        ? consultasApi.list(p, 10, filters)
+        : consultasApi.list(p);
+
       if (allowWrite) {
         const [appts, allActive, docs, pats, convs] = await Promise.all([
-          consultasApi.list(p),
+          listPromise,
           consultasApi.list(0, 100),
           medicosApi.list(0, 100),
           pacientesApi.list(0, 100),
@@ -144,7 +219,7 @@ export default function Appointments() {
         setPatients(pats.content);
         setConvenios(convs);
       } else {
-        const appts = await consultasApi.list(p);
+        const appts = await listPromise;
         setAppointments(appts.content);
         setTotalPages(appts.totalPages);
       }
@@ -156,8 +231,13 @@ export default function Appointments() {
   };
 
   useEffect(() => {
-    fetchAll(page);
-  }, [page, allowWrite]);
+    fetchAll(page, statusFilter);
+  }, [page, statusFilter, allowWrite]);
+
+  const handleStatusFilterChange = (value: string) => {
+    setStatusFilter(value as StatusFilterOption);
+    setPage(0);
+  };
 
   const filteredAppointments = search.trim()
     ? appointments.filter(a =>
@@ -175,6 +255,7 @@ export default function Appointments() {
   const eligibleOriginConsultas = selectedPatientIdNum
     ? activeConsultasForReturn.filter(c => {
         if (c.tipo !== 'NORMAL') return false;
+        if (c.status !== 'CONCLUIDA') return false;
         if (c.idPaciente != null && c.idPaciente !== selectedPatientIdNum) return false;
         if (activeReturnOriginIds.has(c.id)) return false;
         const diffDays = (Date.now() - new Date(c.dataHora).getTime()) / (24 * 60 * 60 * 1000);
@@ -232,11 +313,29 @@ export default function Appointments() {
       setIsScheduleOpen(false);
       setScheduleForm(emptyScheduleForm());
       setPage(0);
-      fetchAll(0);
+      fetchAll(0, statusFilter);
     } catch (err: any) {
       toast.error(extractApiError(err, 'Erro ao agendar consulta'));
     } finally {
       setScheduling(false);
+    }
+  };
+
+  const runDirectTransition = async (
+    apt: ConsultaListagem,
+    action: () => Promise<unknown>,
+    successMsg: string,
+    fallbackErr: string,
+  ) => {
+    setActionLoadingId(apt.id);
+    try {
+      await action();
+      toast.success(successMsg);
+      fetchAll(page, statusFilter);
+    } catch (err: any) {
+      toast.error(extractApiError(err, fallbackErr));
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -263,11 +362,89 @@ export default function Appointments() {
       toast.success('Consulta cancelada com sucesso');
       setIsCancelOpen(false);
       setCancelTarget(null);
-      fetchAll(page);
+      fetchAll(page, statusFilter);
     } catch (err: any) {
       toast.error(extractApiError(err, 'Erro ao cancelar consulta'));
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const handleOpenReschedule = (apt: ConsultaListagem) => {
+    setRescheduleTarget(apt);
+    setRescheduleForm({
+      dateInput: '',
+      timeInput: '',
+      idMedico: apt.idMedico != null ? String(apt.idMedico) : '',
+      solicitadoPor: 'CLINICA',
+      motivo: '',
+    });
+  };
+
+  const handleReschedule = async () => {
+    if (!rescheduleTarget || !rescheduleForm.dateInput || !rescheduleForm.timeInput) {
+      toast.error('Informe a nova data e horário');
+      return;
+    }
+    const isoData = `${rescheduleForm.dateInput}T${rescheduleForm.timeInput}:00`;
+    if (new Date(isoData) <= new Date()) {
+      toast.error('A nova data deve ser futura');
+      return;
+    }
+    setRescheduling(true);
+    try {
+      const payload: ConsultaReagendamento = {
+        novaData: isoData,
+        solicitadoPor: rescheduleForm.solicitadoPor,
+        ...(rescheduleForm.idMedico && { idMedico: Number(rescheduleForm.idMedico) }),
+        ...(rescheduleForm.motivo.trim() && { motivo: rescheduleForm.motivo.trim() }),
+      };
+      await consultasApi.reagendar(rescheduleTarget.id, payload);
+      toast.success('Consulta reagendada com sucesso');
+      setRescheduleTarget(null);
+      fetchAll(page, statusFilter);
+    } catch (err: any) {
+      toast.error(extractApiError(err, 'Erro ao reagendar consulta'));
+    } finally {
+      setRescheduling(false);
+    }
+  };
+
+  const handleOpenAbsence = (apt: ConsultaListagem) => {
+    setAbsenceTarget(apt);
+    setAbsenceObs('');
+  };
+
+  const handleMarkAbsence = async () => {
+    if (!absenceTarget) return;
+    setMarkingAbsence(true);
+    try {
+      await consultasApi.registrarAusencia(
+        absenceTarget.id,
+        absenceObs.trim() ? { observacao: absenceObs.trim() } : undefined,
+      );
+      toast.success('Ausência registrada com sucesso');
+      setAbsenceTarget(null);
+      fetchAll(page, statusFilter);
+    } catch (err: any) {
+      toast.error(extractApiError(err, 'Erro ao registrar ausência'));
+    } finally {
+      setMarkingAbsence(false);
+    }
+  };
+
+  const handleOpenHistory = async (apt: ConsultaListagem) => {
+    setHistoryTarget(apt);
+    setHistoryItems([]);
+    setLoadingHistory(true);
+    try {
+      const items = await consultasApi.historico(apt.id);
+      setHistoryItems(items);
+    } catch (err: any) {
+      toast.error(extractApiError(err, 'Erro ao carregar histórico da consulta'));
+      setHistoryTarget(null);
+    } finally {
+      setLoadingHistory(false);
     }
   };
 
@@ -279,24 +456,46 @@ export default function Appointments() {
     };
   };
 
+  const formatFullDateTime = (iso: string) =>
+    new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
         <PageHeader
           icon={Calendar}
           title="Consultas"
-          description="Agende e gerencie consultas médicas"
+          description="Agende, acompanhe o ciclo de atendimento e gerencie remarcações"
           actionLabel="Nova consulta"
           onAction={allowWrite ? () => { setScheduleForm(emptyScheduleForm()); setIsScheduleOpen(true); } : undefined}
         />
 
         <Card className="border-border">
-          <div className="p-6">
-            <SearchInput
-              placeholder="Buscar por paciente ou médico..."
-              value={search}
-              onChange={setSearch}
-            />
+          <div className="p-6 flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="flex-1">
+              <SearchInput
+                placeholder="Buscar por paciente ou médico..."
+                value={search}
+                onChange={setSearch}
+              />
+            </div>
+            <div className="w-full sm:w-64">
+              <Label className="sr-only" htmlFor="statusFilter">Filtrar por status</Label>
+              <Select value={statusFilter} onValueChange={handleStatusFilterChange}>
+                <SelectTrigger id="statusFilter" aria-label="Filtrar por status">
+                  <SelectValue placeholder="Filtrar por status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ATIVAS">Ativas na agenda (padrão)</SelectItem>
+                  <SelectItem value="TODAS">Todas (inclui encerradas)</SelectItem>
+                  {allStatusConsultas.map(status => (
+                    <SelectItem key={status} value={status}>
+                      {statusConsultaLabel[status]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </Card>
 
@@ -314,14 +513,26 @@ export default function Appointments() {
                     <TableHead>Médico</TableHead>
                     <TableHead>Data</TableHead>
                     <TableHead>Hora</TableHead>
+                    <TableHead>Status</TableHead>
                     <TableHead>Prioridade</TableHead>
                     <TableHead>Tipo</TableHead>
-                    {allowWrite && <TableHead>Ações</TableHead>}
+                    <TableHead>Ações</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredAppointments.map((apt) => {
                     const { date, time } = formatDateTime(apt.dataHora);
+                    const status: StatusConsulta = apt.status ?? 'AGENDADA';
+                    const busy = actionLoadingId === apt.id;
+                    const canConfirm = allowWrite && status === 'AGENDADA';
+                    const canCheckIn = allowWrite && (status === 'AGENDADA' || status === 'CONFIRMADA');
+                    const canRescheduleOrCancel =
+                      allowWrite && (status === 'AGENDADA' || status === 'CONFIRMADA' || status === 'CHECK_IN');
+                    const canMarkAbsence =
+                      allowWrite && (status === 'AGENDADA' || status === 'CONFIRMADA') && isTodayOrPast(apt.dataHora);
+                    const canStart = isMedico && status === 'CHECK_IN';
+                    const canFinish = isMedico && status === 'EM_ATENDIMENTO';
+
                     return (
                       <TableRow key={apt.id}>
                         <TableCell className="font-medium">{apt.nomePaciente}</TableCell>
@@ -329,28 +540,152 @@ export default function Appointments() {
                         <TableCell>{date}</TableCell>
                         <TableCell>{time}</TableCell>
                         <TableCell>
+                          <Badge variant={statusConsultaBadge[status]}>
+                            {statusConsultaLabel[status]}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
                           <Badge variant={prioridadeBadge[apt.prioridade]}>
                             {prioridadeLabel[apt.prioridade]}
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          {apt.tipo === 'RETORNO' && apt.consultaOrigemId
-                            ? `Retorno (#${apt.consultaOrigemId})`
-                            : tipoLabel[apt.tipo] ?? apt.tipo}
+                          <div>
+                            {apt.tipo === 'RETORNO' && apt.consultaOrigemId
+                              ? `Retorno (#${apt.consultaOrigemId})`
+                              : tipoLabel[apt.tipo] ?? apt.tipo}
+                          </div>
+                          {apt.consultaReagendadaDeId && (
+                            <p className="text-xs text-muted-foreground">
+                              Reagendada de #{apt.consultaReagendadaDeId}
+                            </p>
+                          )}
                         </TableCell>
-                        {allowWrite && (
-                          <TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            {canConfirm && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={busy}
+                                aria-label="Confirmar consulta"
+                                title="Confirmar consulta"
+                                onClick={() =>
+                                  runDirectTransition(
+                                    apt,
+                                    () => consultasApi.confirmar(apt.id),
+                                    'Consulta confirmada com sucesso',
+                                    'Erro ao confirmar consulta',
+                                  )
+                                }
+                              >
+                                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                              </Button>
+                            )}
+                            {canCheckIn && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={busy}
+                                aria-label="Registrar check-in"
+                                title="Registrar check-in"
+                                onClick={() =>
+                                  runDirectTransition(
+                                    apt,
+                                    () => consultasApi.checkIn(apt.id),
+                                    'Check-in registrado com sucesso',
+                                    'Erro ao registrar check-in',
+                                  )
+                                }
+                              >
+                                <LogIn className="h-4 w-4 text-amber-600" />
+                              </Button>
+                            )}
+                            {canStart && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={busy}
+                                aria-label="Iniciar atendimento"
+                                title="Iniciar atendimento"
+                                onClick={() =>
+                                  runDirectTransition(
+                                    apt,
+                                    () => consultasApi.iniciar(apt.id),
+                                    'Atendimento iniciado',
+                                    'Erro ao iniciar atendimento',
+                                  )
+                                }
+                              >
+                                <Play className="h-4 w-4 text-blue-600" />
+                              </Button>
+                            )}
+                            {canFinish && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={busy}
+                                aria-label="Concluir atendimento"
+                                title="Concluir atendimento"
+                                onClick={() =>
+                                  runDirectTransition(
+                                    apt,
+                                    () => consultasApi.concluir(apt.id),
+                                    'Atendimento concluído',
+                                    'Erro ao concluir atendimento',
+                                  )
+                                }
+                              >
+                                <CheckCheck className="h-4 w-4 text-green-600" />
+                              </Button>
+                            )}
+                            {canRescheduleOrCancel && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={busy}
+                                aria-label="Reagendar consulta"
+                                title="Reagendar consulta"
+                                onClick={() => handleOpenReschedule(apt)}
+                              >
+                                <CalendarClock className="h-4 w-4 text-primary" />
+                              </Button>
+                            )}
+                            {canMarkAbsence && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={busy}
+                                aria-label="Registrar ausência"
+                                title="Registrar ausência"
+                                onClick={() => handleOpenAbsence(apt)}
+                              >
+                                <UserX className="h-4 w-4 text-orange-600" />
+                              </Button>
+                            )}
+                            {canRescheduleOrCancel && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                disabled={busy}
+                                aria-label="Cancelar consulta"
+                                onClick={() => handleOpenCancel(apt)}
+                                title="Cancelar consulta"
+                              >
+                                <XCircle className="h-4 w-4 text-destructive" />
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="sm"
-                              aria-label="Cancelar consulta"
-                              onClick={() => handleOpenCancel(apt)}
-                              title="Cancelar consulta"
+                              aria-label="Ver histórico"
+                              title="Ver histórico de status"
+                              onClick={() => handleOpenHistory(apt)}
                             >
-                              <XCircle className="h-4 w-4 text-destructive" />
+                              <History className="h-4 w-4 text-muted-foreground" />
                             </Button>
-                          </TableCell>
-                        )}
+                          </div>
+                        </TableCell>
                       </TableRow>
                     );
                   })}
@@ -388,7 +723,7 @@ export default function Appointments() {
           <EmptyState
             icon={Calendar}
             title="Nenhuma consulta encontrada"
-            description={search ? 'Nenhum resultado para a busca.' : 'Agende a primeira consulta para começar.'}
+            description={search || statusFilter !== 'ATIVAS' ? 'Nenhum resultado para os filtros aplicados.' : 'Agende a primeira consulta para começar.'}
             actionLabel={allowWrite ? 'Nova consulta' : undefined}
             onAction={allowWrite ? () => { setScheduleForm(emptyScheduleForm()); setIsScheduleOpen(true); } : undefined}
           />
@@ -428,7 +763,7 @@ export default function Appointments() {
 
                 <div className="sm:col-span-2">
                   <Label className="mb-1.5 block" htmlFor="consultaOrigemId">
-                    Retorno de consulta (opcional — em até 30 dias)
+                    Retorno de consulta concluída (opcional — em até 30 dias)
                   </Label>
                   <Select
                     value={scheduleForm.consultaOrigemId || 'none'}
@@ -606,6 +941,9 @@ export default function Appointments() {
                   ))}
                 </SelectContent>
               </Select>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                Cancelamentos solicitados pelo paciente exigem antecedência mínima de 24h; cancelamentos pela clínica ou médico não possuem restrição de prazo.
+              </p>
             </div>
 
             <div className="flex justify-end gap-3 pt-2 border-t">
@@ -616,6 +954,196 @@ export default function Appointments() {
                 {cancelling ? 'Cancelando...' : 'Confirmar Cancelamento'}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reschedule Modal */}
+      <Dialog open={!!rescheduleTarget} onOpenChange={open => { if (!open && !rescheduling) setRescheduleTarget(null); }}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Reagendar Consulta #{rescheduleTarget?.id}</DialogTitle>
+            <DialogDescription>
+              {rescheduleTarget && (
+                <>Remarcar consulta de <strong>{rescheduleTarget.nomePaciente}</strong> com vínculo histórico</>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <Label className="mb-1.5 block" htmlFor="rescheduleDate">Nova data *</Label>
+                <Input
+                  id="rescheduleDate"
+                  type="date"
+                  value={rescheduleForm.dateInput}
+                  onChange={e => setRescheduleForm(p => ({ ...p, dateInput: e.target.value }))}
+                />
+              </div>
+              <div>
+                <Label className="mb-1.5 block" htmlFor="rescheduleTime">Novo horário * (07:00 – 18:30)</Label>
+                <Input
+                  id="rescheduleTime"
+                  type="time"
+                  value={rescheduleForm.timeInput}
+                  onChange={e => setRescheduleForm(p => ({ ...p, timeInput: e.target.value }))}
+                  min="07:00"
+                  max="18:30"
+                />
+              </div>
+            </div>
+
+            <div>
+              <Label className="mb-1.5 block" htmlFor="rescheduleMedico">
+                Médico {rescheduleTarget?.tipo === 'RETORNO' ? '(fixo para retorno)' : ''}
+              </Label>
+              <Select
+                value={rescheduleForm.idMedico}
+                onValueChange={v => setRescheduleForm(p => ({ ...p, idMedico: v }))}
+                disabled={rescheduleTarget?.tipo === 'RETORNO'}
+              >
+                <SelectTrigger id="rescheduleMedico">
+                  <SelectValue placeholder="Manter médico atual" />
+                </SelectTrigger>
+                <SelectContent>
+                  {doctors.map(doc => (
+                    <SelectItem key={doc.id} value={String(doc.id)}>
+                      {doc.nome} — {doc.especialidade}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="mb-1.5 block" htmlFor="rescheduleSolicitadoPor">Solicitado por *</Label>
+              <Select
+                value={rescheduleForm.solicitadoPor}
+                onValueChange={v => setRescheduleForm(p => ({ ...p, solicitadoPor: v as CanceladoPor }))}
+              >
+                <SelectTrigger id="rescheduleSolicitadoPor">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="CLINICA">Clínica (sem restrição de 24h)</SelectItem>
+                  <SelectItem value="PACIENTE">Paciente (exige 24h de antecedência)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="mb-1.5 block" htmlFor="rescheduleMotivo">Motivo (opcional)</Label>
+              <Input
+                id="rescheduleMotivo"
+                value={rescheduleForm.motivo}
+                onChange={e => setRescheduleForm(p => ({ ...p, motivo: e.target.value }))}
+                placeholder="Ex: Ajuste de agenda médica"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2 border-t">
+              <Button variant="outline" onClick={() => setRescheduleTarget(null)} disabled={rescheduling}>
+                Voltar
+              </Button>
+              <Button onClick={handleReschedule} disabled={rescheduling}>
+                {rescheduling ? 'Reagendando...' : 'Confirmar Reagendamento'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Absence Modal */}
+      <Dialog open={!!absenceTarget} onOpenChange={open => { if (!open && !markingAbsence) setAbsenceTarget(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Registrar Ausência</DialogTitle>
+            <DialogDescription>
+              {absenceTarget && (
+                <>Marcar falta para <strong>{absenceTarget.nomePaciente}</strong> na consulta #{absenceTarget.id}</>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <Label className="mb-1.5 block" htmlFor="absenceObs">Observação (opcional)</Label>
+              <Input
+                id="absenceObs"
+                value={absenceObs}
+                onChange={e => setAbsenceObs(e.target.value)}
+                placeholder="Ex: Não compareceu após 20 minutos"
+              />
+            </div>
+
+            <div className="flex justify-end gap-3 pt-2 border-t">
+              <Button variant="outline" onClick={() => setAbsenceTarget(null)} disabled={markingAbsence}>
+                Voltar
+              </Button>
+              <Button variant="destructive" onClick={handleMarkAbsence} disabled={markingAbsence}>
+                {markingAbsence ? 'Registrando...' : 'Confirmar Ausência'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* History Modal */}
+      <Dialog open={!!historyTarget} onOpenChange={open => { if (!open) setHistoryTarget(null); }}>
+        <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Histórico da Consulta #{historyTarget?.id}</DialogTitle>
+            <DialogDescription>
+              {historyTarget && (
+                <>Trilha de status de <strong>{historyTarget.nomePaciente}</strong> com <strong>{historyTarget.nomeMedico}</strong></>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingHistory ? (
+            <div className="py-8 text-center text-muted-foreground">Carregando histórico...</div>
+          ) : historyItems.length > 0 ? (
+            <ol className="space-y-3">
+              {historyItems.map(item => (
+                <li key={item.id} className="rounded-lg border border-border bg-muted/20 p-3 text-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      {item.statusAnterior && (
+                        <>
+                          <Badge variant={statusConsultaBadge[item.statusAnterior]}>
+                            {statusConsultaLabel[item.statusAnterior]}
+                          </Badge>
+                          <span className="text-muted-foreground">→</span>
+                        </>
+                      )}
+                      <Badge variant={statusConsultaBadge[item.statusNovo]}>
+                        {statusConsultaLabel[item.statusNovo]}
+                      </Badge>
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {formatFullDateTime(item.alteradoEm)}
+                    </span>
+                  </div>
+                  {item.motivo && (
+                    <p className="mt-2 text-foreground">{item.motivo}</p>
+                  )}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Responsável: {item.usuarioLogin || 'Sistema'}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <div className="py-6 text-center text-sm text-muted-foreground">
+              Nenhum registro de transição encontrado para esta consulta.
+            </div>
+          )}
+
+          <div className="flex justify-end pt-2 border-t">
+            <Button variant="outline" onClick={() => setHistoryTarget(null)}>
+              Fechar
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

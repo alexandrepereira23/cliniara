@@ -16,7 +16,8 @@ import {
 import { consultasApi } from '@/api/consultas';
 import { pacientesApi } from '@/api/pacientes';
 import { prontuariosApi } from '@/api/prontuarios';
-import type { ConsultaListagem, Prioridade, TipoConsulta } from '@/types/api';
+import { statusConsultaBadge, statusConsultaLabel } from '@/lib/consultaStatus';
+import type { ConsultaListagem, Prioridade, StatusConsulta, TipoConsulta } from '@/types/api';
 
 const prioridadeLabel: Record<Prioridade, string> = {
   ROTINA: 'Rotina',
@@ -232,24 +233,33 @@ export function MedicoDashboard() {
                       <TableHead>Horário</TableHead>
                       <TableHead>Paciente</TableHead>
                       <TableHead>Médico</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead>Prioridade</TableHead>
                       <TableHead>Tipo</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {todayAppointments.map(appointment => (
-                      <TableRow key={appointment.id}>
-                        <TableCell className="font-medium">{formatTime(appointment.dataHora)}</TableCell>
-                        <TableCell>{appointment.nomePaciente}</TableCell>
-                        <TableCell>{appointment.nomeMedico}</TableCell>
-                        <TableCell>
-                          <Badge variant={prioridadeBadge[appointment.prioridade]}>
-                            {prioridadeLabel[appointment.prioridade]}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{tipoConsultaLabel[appointment.tipo]}</TableCell>
-                      </TableRow>
-                    ))}
+                    {todayAppointments.map(appointment => {
+                      const status: StatusConsulta = appointment.status ?? 'AGENDADA';
+                      return (
+                        <TableRow key={appointment.id}>
+                          <TableCell className="font-medium">{formatTime(appointment.dataHora)}</TableCell>
+                          <TableCell>{appointment.nomePaciente}</TableCell>
+                          <TableCell>{appointment.nomeMedico}</TableCell>
+                          <TableCell>
+                            <Badge variant={statusConsultaBadge[status]}>
+                              {statusConsultaLabel[status]}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={prioridadeBadge[appointment.prioridade]}>
+                              {prioridadeLabel[appointment.prioridade]}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{tipoConsultaLabel[appointment.tipo]}</TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>

@@ -20,6 +20,7 @@ function consulta(overrides: Partial<ConsultaListagem>): ConsultaListagem {
     dataHora: '2026-08-18T10:30:00',
     prioridade: 'ROTINA',
     tipo: 'NORMAL',
+    status: 'AGENDADA',
     ...overrides,
   };
 }
@@ -198,5 +199,26 @@ describe('FuncionarioDashboard', () => {
 
     expect(await screen.findAllByText('Ana Souza')).not.toHaveLength(0);
     expect(screen.queryByText('João Oliveira')).not.toBeInTheDocument();
+  });
+
+  it('exibe badge de status e permite filtrar a agenda de hoje por status', async () => {
+    const user = userEvent.setup();
+    mockPages([
+      page([
+        consulta({ id: 1, nomePaciente: 'João Oliveira', dataHora: '2026-08-18T10:30:00', status: 'AGENDADA' }),
+        consulta({ id: 2, nomePaciente: 'Ana Souza', dataHora: '2026-08-18T11:30:00', status: 'CHECK_IN' }),
+      ]),
+    ]);
+
+    renderDashboard();
+
+    const agendaCard = closestCard(await screen.findByText('Agenda de hoje'));
+    expect(within(agendaCard).getAllByText('Check-in').length).toBeGreaterThan(0);
+
+    await user.click(screen.getByRole('combobox', { name: /filtrar agenda por status/i }));
+    await user.click(await screen.findByRole('option', { name: 'Check-in' }));
+
+    expect(within(agendaCard).getAllByText('Ana Souza').length).toBeGreaterThan(0);
+    expect(within(agendaCard).queryByText('João Oliveira')).not.toBeInTheDocument();
   });
 });

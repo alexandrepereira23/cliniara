@@ -171,4 +171,39 @@ describe('MedicalRecords', () => {
     await waitFor(() => expect(prontuariosMock.remove).toHaveBeenCalledWith(1))
     expect(toastMock.success).toHaveBeenCalledWith('Prontuário inativado com sucesso')
   })
+
+  it('ROLE_MEDICO vê apenas consultas EM_ATENDIMENTO ou CONCLUIDA no seletor de Novo Prontuário', async () => {
+    const user = userEvent.setup()
+    consultasMock.list.mockResolvedValue(page([
+      {
+        id: 11,
+        nomeMedico: 'Dr. Carlos Lima',
+        nomePaciente: 'Paciente Agendado',
+        dataHora: new Date().toISOString(),
+        prioridade: 'ROTINA',
+        tipo: 'NORMAL',
+        status: 'AGENDADA',
+      },
+      {
+        id: 12,
+        nomeMedico: 'Dr. Carlos Lima',
+        nomePaciente: 'Paciente Em Atendimento',
+        dataHora: new Date().toISOString(),
+        prioridade: 'ROTINA',
+        tipo: 'NORMAL',
+        status: 'EM_ATENDIMENTO',
+      },
+    ]))
+
+    renderWithRole('ROLE_MEDICO')
+
+    await screen.findByText('Maria Souza')
+    await user.click(screen.getByRole('button', { name: /novo prontuário/i }))
+
+    const dialog = await screen.findByRole('dialog')
+    await user.click(within(dialog).getByRole('combobox', { name: /consulta/i }))
+
+    expect(await screen.findByRole('option', { name: /Paciente Em Atendimento/i })).toBeInTheDocument()
+    expect(screen.queryByRole('option', { name: /Paciente Agendado/i })).not.toBeInTheDocument()
+  })
 })
